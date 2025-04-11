@@ -92,7 +92,8 @@ if entered_id and entered_id in student_data["Student ID"].astype(str).values:
             st.session_state.course_count = course_count - 1
             st.rerun()
 
-    if st.button("🔍 Analyze Schedule") and course_selections:
+    analyze = st.button("🔍 Analyze Schedule")
+    if analyze or st.session_state.get("reanalyze"):
         student_quality = calculate_student_quality_score(student_profile)
         schedule_difficulty = calculate_schedule_difficulty_score(course_selections)
         risk_level = determine_schedule_indicator(student_quality, schedule_difficulty)
@@ -126,8 +127,17 @@ if entered_id and entered_id in student_data["Student ID"].astype(str).values:
                     if rate < 50:
                         st.markdown(f"""
                             <div style='background-color: #fff3cd; border-left: 8px solid #ffc107; padding: 0.75em; margin-bottom: 0.75em;'>
-                                <strong>{course_code}</strong>: Low historical pass rate ({rate}%)
+                                <strong>{course_code}</strong>: Low historical pass rate ({rate}%)}
                             </div>
                         """, unsafe_allow_html=True)
+
+            if icon == "🔴":
+                st.warning("🔁 Please revise the schedule to improve the outcome.")
+                if st.button("♻️ Re-analyze After Adjustments"):
+                    st.session_state.reanalyze = True
+                    st.rerun()
+        elif st.session_state.get("reanalyze") and icon in ["🟡", "🟢"]:
+            st.success("✅ Schedule improved! You've helped this student move toward a more manageable plan.")
+            st.session_state.reanalyze = False
 elif entered_id:
     st.error("Student ID not found. Please check and try again.")
