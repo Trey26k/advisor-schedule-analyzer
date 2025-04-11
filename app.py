@@ -120,7 +120,8 @@ else:
 
         if icon in ["🔴", "🟡"]:
             st.markdown("---")
-            st.subheader("⚠️ Courses to Reconsider")
+            st.subheader("⚠️ Build a Supportive Alternate Schedule")
+            st.markdown("<p><strong>🔴 This schedule is currently too difficult based on the student's profile.</strong><br>Consider removing 1–2 of the flagged courses or replacing them with general education or support options.</p>", unsafe_allow_html=True)
             reconsidered = False
             for i, course_code in enumerate(course_selections):
                 match = course_pass_rates[course_pass_rates["course_code"] == course_code]
@@ -138,8 +139,13 @@ else:
                             st.session_state.reanalyze = True
                             st.rerun()
             if icon == "🔴" and not reconsidered:
-                st.warning("🔁 Please revise the schedule to improve the outcome.")
-        elif st.session_state.reanalyze and icon in ["🟡", "🟢"]:
+                st.warning("🔁 Please revise the schedule to improve the outcome before finalizing.")
+            if icon == "🔴" and reconsidered:
+                st.info("After making your changes, click the button below to re-check the schedule.")
+                if st.button("♻️ Re-check Schedule"):
+                    st.session_state.reanalyze = True
+                    st.rerun()
+ st.session_state.reanalyze and icon in ["🟡", "🟢"]:
             st.success("✅ Schedule improved! You've helped this student move toward a more manageable plan.")
             st.session_state.reanalyze = False
 elif entered_id:
