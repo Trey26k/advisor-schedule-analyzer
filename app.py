@@ -14,7 +14,6 @@ def load_data():
 
 student_data, course_pass_rates = load_data()
 
-# --- Score Calculation Functions ---
 def calculate_student_quality_score(profile):
     hs_gpa_score = (profile["High School GPA"] / 4.0) * 40
     rank_n, rank_d = map(int, profile["High School Class Rank"].split('/'))
@@ -62,22 +61,20 @@ def determine_schedule_indicator(student_quality, schedule_difficulty):
         else:
             return "🔴 Red"
 
-# --- UI Logic ---
 entered_id = st.text_input("Enter Student ID")
 
 if entered_id and entered_id in student_data["Student ID"].astype(str).values:
     student_profile = student_data[student_data["Student ID"].astype(str) == entered_id].iloc[0]
-
     available_courses = sorted(course_pass_rates["course_code"].dropna().unique().tolist())
     st.subheader("📝 Build Proposed Schedule")
 
+    if "course_count" not in st.session_state:
+        st.session_state.course_count = 4
+    if "reanalyze" not in st.session_state:
+        st.session_state.reanalyze = False
+
     course_selections = []
-    course_count = st.session_state.get("course_count", 4)
-
-    if "course_codes" not in st.session_state:
-        st.session_state.course_codes = [None] * course_count
-
-    for i in range(course_count):
+    for i in range(st.session_state.course_count):
         selected = st.selectbox(f"Course {i+1}", [""] + available_courses, index=0, key=f"course_{i}")
         if selected:
             course_selections.append(selected)
@@ -85,15 +82,14 @@ if entered_id and entered_id in student_data["Student ID"].astype(str).values:
     col1, col2 = st.columns(2)
     with col1:
         if st.button("➕ Add Course"):
-            st.session_state.course_count = course_count + 1
+            st.session_state.course_count += 1
             st.rerun()
     with col2:
-        if course_count > 1 and st.button("➖ Remove Course"):
-            st.session_state.course_count = course_count - 1
+        if st.session_state.course_count > 1 and st.button("➖ Remove Course"):
+            st.session_state.course_count -= 1
             st.rerun()
 
-    analyze = st.button("🔍 Analyze Schedule")
-    if analyze or st.session_state.get("reanalyze"):
+    if st.button("🔍 Analyze Schedule") or st.session_state.reanalyze:
         student_quality = calculate_student_quality_score(student_profile)
         schedule_difficulty = calculate_schedule_difficulty_score(course_selections)
         risk_level = determine_schedule_indicator(student_quality, schedule_difficulty)
@@ -120,23 +116,25 @@ if entered_id and entered_id in student_data["Student ID"].astype(str).values:
         if icon in ["🔴", "🟡"]:
             st.markdown("---")
             st.subheader("⚠️ Courses to Reconsider")
-            for course_code in course_selections:
+            reconsidered = False
+            for i, course_code in enumerate(course_selections):
                 match = course_pass_rates[course_pass_rates["course_code"] == course_code]
                 if not match.empty:
                     rate = int(match.iloc[0]["pass_rate"].replace('%', ''))
                     if rate < 50:
-                        st.markdown(f"""
-                            <div style='background-color: #fff3cd; border-left: 8px solid #ffc107; padding: 0.75em; margin-bottom: 0.75em;'>
-                                <strong>{course_code}</strong>: Low historical pass rate ({rate}%)
-                            </div>
-                        """, unsafe_allow_html=True)
-
-            if icon == "🔴":
+                        reconsidered = True
+                        new_selection = st.selectbox(
+                            f"Replace {course_code} (Low pass rate: {rate}%)",
+                            [course_code] + [c for c in available_courses if c != course_code],
+                            key=f"replace_{i}"
+                        )
+                        if new_selection != course_code:
+                            st.session_state[f"course_{i}"] = new_selection
+                            st.session_state.reanalyze = True
+                            st.rerun()
+            if icon == "🔴" and not reconsidered:
                 st.warning("🔁 Please revise the schedule to improve the outcome.")
-                if st.button("♻️ Re-analyze After Adjustments"):
-                    st.session_state.reanalyze = True
-                    st.rerun()
-        elif st.session_state.get("reanalyze") and icon in ["🟡", "🟢"]:
+        elif st.session_state.reanalyze and icon in ["🟡", "🟢"]:
             st.success("✅ Schedule improved! You've helped this student move toward a more manageable plan.")
             st.session_state.reanalyze = False
 elif entered_id:
