@@ -127,7 +127,7 @@ if entered_id and entered_id in student_data["Student ID"].astype(str).values:
                     if rate < 50:
                         st.markdown(f"""
                             <div style='background-color: #fff3cd; border-left: 8px solid #ffc107; padding: 0.75em; margin-bottom: 0.75em;'>
-                                <strong>{course_code}</strong>: Low historical pass rate ({rate}%)}
+                                <strong>{course_code}</strong>: Low historical pass rate ({rate}%)
                             </div>
                         """, unsafe_allow_html=True)
 
