@@ -72,11 +72,6 @@ if entered_id and entered_id in student_data["Student ID"].astype(str).values:
         st.session_state.course_count = 4
     if "reanalyze" not in st.session_state:
         st.session_state.reanalyze = False
-else:
-    st.session_state.reanalyze = st.session_state.reanalyze or any(
-        st.session_state.get(f"replace_{i}") != st.session_state.get(f"course_{i}")
-        for i in range(st.session_state.course_count)
-    )
 
     course_selections = []
     for i in range(st.session_state.course_count):
@@ -145,11 +140,10 @@ else:
                 if st.button("♻️ Re-check Schedule"):
                     st.session_state.reanalyze = True
                     st.rerun()
-        elif st.session_state.reanalyze and icon in ["🟡", "🟢"]:
+
+        if st.session_state.reanalyze and icon in ["🟡", "🟢"]:
             st.success("✅ Schedule improved! You've helped this student move toward a more manageable plan.")
             st.session_state.reanalyze = False
-                 elif st.session_state.reanalyze and icon in ["🟡", "🟢"]:
-            st.success("✅ Schedule improved! You've helped this student move toward a more manageable plan.")
-            st.session_state.reanalyze = False
+
 elif entered_id:
     st.error("Student ID not found. Please check and try again.")
