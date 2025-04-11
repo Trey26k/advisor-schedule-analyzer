@@ -145,6 +145,9 @@ else:
                 if st.button("♻️ Re-check Schedule"):
                     st.session_state.reanalyze = True
                     st.rerun()
+        elif st.session_state.reanalyze and icon in ["🟡", "🟢"]:
+            st.success("✅ Schedule improved! You've helped this student move toward a more manageable plan.")
+            st.session_state.reanalyze = False
                  elif st.session_state.reanalyze and icon in ["🟡", "🟢"]:
             st.success("✅ Schedule improved! You've helped this student move toward a more manageable plan.")
             st.session_state.reanalyze = False
