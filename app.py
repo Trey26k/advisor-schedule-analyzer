@@ -10,10 +10,10 @@ st.write("Assess a student's schedule difficulty based on their academic history
 
 # Load data
 try:
-    students = pd.read_excel("Student Data.xlsx")
-    courses = pd.read_excel("full_atu_course_pass_rates_combined.xlsx")
+    students = pd.read_excel("data/Student Data.xlsx")
+    courses = pd.read_excel("data/full_atu_course_pass_rates_combined.xlsx")
 except:
-    st.error("Error: Please ensure 'Student Data.xlsx' and 'full_atu_course_pass_rates_combined.xlsx' are in the repository.")
+    st.error("Error: Please ensure 'Student Data.xlsx' and 'full_atu_course_pass_rates_combined.xlsx' are in the 'data' folder.")
     st.stop()
 
 # Calculate DFW rate
