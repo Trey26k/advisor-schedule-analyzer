@@ -6,7 +6,7 @@ st.set_page_config(page_title="Advising Tool Demo", layout="centered")
 
 # Title
 st.title("First-Year Student Advising Tool 📚")
-st.write("Assess a student's schedule difficulty based on their academic history and course DFW rates.")
+st.write("Assess a student's schedule difficulty to ensure a great start to college.")
 
 # Load data
 try:
@@ -16,7 +16,7 @@ except:
     st.error("Error: Please ensure 'Student Data.xlsx' and 'full_atu_course_pass_rates_combined.xlsx' are in the 'data' folder.")
     st.stop()
 
-# Calculate DFW rate
+# Calculate DFW rate (kept internal)
 courses["DFW Rate (%)"] = 100 - courses["pass_rate"].str.rstrip("%").astype(float)
 
 # Select student
@@ -25,21 +25,16 @@ student_ids = students["Student ID"].astype(str).tolist()
 selected_student = st.selectbox("Choose a student:", student_ids)
 student_data = students[students["Student ID"] == int(selected_student)].iloc[0]
 
-# Display student info
+# Display minimal student info
 st.write(f"**Student ID**: {selected_student}")
-st.write(f"**High School GPA**: {student_data['High School GPA']}")
-st.write(f"**ACT Composite**: {student_data['ACT Composite']}")
-st.write(f"**Class Rank**: {student_data['High School Class Rank']}")
-st.write(f"**First Generation**: {student_data['First Generation College Student']}")
-college_gpa = student_data.get("College GPA", None)
-st.write(f"**Dual Enrollment**: {'Yes' if pd.notnull(college_gpa) else 'No'}")
 
-# Calculate student strength
+# Calculate student strength (kept internal)
 gpa_score = (student_data["High School GPA"] / 4.0) * 40
 rank_str = student_data["High School Class Rank"]
 position, total = map(int, rank_str.split("/"))
 rank_score = (1 - position / total) * 30
 act_score = (student_data["ACT Composite"] / 36) * 20
+college_gpa = student_data.get("College GPA", None)
 dual_bonus = 5 if pd.notnull(college_gpa) else 0
 first_gen_penalty = -5 if student_data["First Generation College Student"] == "yes" else 0
 student_strength = gpa_score + rank_score + act_score + dual_bonus + first_gen_penalty
@@ -61,8 +56,8 @@ for i in range(st.session_state.num_courses):
 
 # Calculate schedule difficulty
 if selected_courses:
-    schedule_df = courses[courses["course_code"].isin(selected_courses)][["course_name", "DFW Rate (%)"]]
-    avg_dfw = schedule_df["DFW Rate (%)"].mean()
+    schedule_df = courses[courses["course_code"].isin(selected_courses)][["course_name"]]
+    avg_dfw = courses[courses["course_code"].isin(selected_courses)]["DFW Rate (%)"].mean()
     st.subheader("Selected Schedule")
     st.table(schedule_df.rename(columns={"course_name": "Course Name"}))
 
