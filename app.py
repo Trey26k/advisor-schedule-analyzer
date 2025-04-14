@@ -4,9 +4,20 @@ import pandas as pd
 # Set page title and layout
 st.set_page_config(page_title="Advising Tool Demo", layout="centered")
 
+# Custom CSS for look and feel
+st.markdown("""
+    <style>
+    .main { background-color: #e6f0ff; padding: 20px; }
+    .stSelectbox, .stCheckbox { margin-bottom: 15px; }
+    .stButton>button { background-color: #007bff; color: white; border-radius: 5px; }
+    .section-divider { border-top: 1px solid #ccc; margin: 20px 0; }
+    .card { background-color: white; padding: 15px; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    </style>
+""", unsafe_allow_html=True)
+
 # Title
-st.title("First-Year Student Advising Tool 📚")
-st.write("Assess a student's schedule difficulty to ensure a great start to college.")
+st.markdown("<div class='card'><h1 style='color: #003087;'>First-Year Student Advising Tool 📚</h1></div>", unsafe_allow_html=True)
+st.markdown("<p style='font-size: 16px; color: #333;'>Help your student thrive with a balanced schedule!</p>", unsafe_allow_html=True)
 
 # Load data
 try:
@@ -20,72 +31,74 @@ except:
 courses["DFW Rate (%)"] = 100 - courses["pass_rate"].str.rstrip("%").astype(float)
 
 # Select student
-st.header("Select a Student")
+st.markdown("<div class='card'><h2 style='color: #003087;'>Select a Student</h2></div>", unsafe_allow_html=True)
 student_ids = students["Student ID"].astype(str).tolist()
-selected_student = st.selectbox("Choose a student:", student_ids)
+selected_student = st.selectbox("Choose a student:", student_ids, help="Select a student by their ID.")
 student_data = students[students["Student ID"] == int(selected_student)].iloc[0]
 
 # Display minimal student info
 st.write(f"**Student ID**: {selected_student}")
 
-# Calculate student strength (kept internal)
-gpa_score = (student_data["High School GPA"] / 4.0) * 40
-rank_str = student_data["High School Class Rank"]
-position, total = map(int, rank_str.split("/"))
-rank_score = (1 - position / total) * 30
-act_score = (student_data["ACT Composite"] / 36) * 20
-college_gpa = student_data.get("College GPA", None)
-dual_bonus = 5 if pd.notnull(college_gpa) else 0
-first_gen_penalty = -5 if student_data["First Generation College Student"] == "yes" else 0
-student_strength = gpa_score + rank_score + act_score + dual_bonus + first_gen_penalty
+# Divider
+st.markdown("<div class='section-divider'></div>", unsafe_allow_html=True)
 
 # Select courses
-st.header("Build Schedule")
-course_options = courses["course_code"].tolist()
+st.markdown("<div class='card'><h2 style='color: #003087;'>Build Schedule 📋</h2></div>", unsafe_allow_html=True)
+course_options = courses["course_name"].tolist()  # Use full course names
 if "num_courses" not in st.session_state:
     st.session_state.num_courses = 4
 
-if st.button("Add another course"):
+if st.button("Add another course", help="Add a slot for an extra course."):
     st.session_state.num_courses += 1
 
 selected_courses = []
 for i in range(st.session_state.num_courses):
-    course = st.selectbox(f"Course {i + 1}", ["Select a course"] + course_options, key=f"course_{i}")
+    course = st.selectbox(f"Course {i + 1}", ["Select a course"] + course_options, key=f"course_{i}", help="Choose a course for the schedule.")
     if course != "Select a course":
         selected_courses.append(course)
 
 # Calculate schedule difficulty
 if selected_courses:
-    schedule_df = courses[courses["course_code"].isin(selected_courses)][["course_name"]]
-    avg_dfw = courses[courses["course_code"].isin(selected_courses)]["DFW Rate (%)"].mean()
-    st.subheader("Selected Schedule")
+    schedule_df = courses[courses["course_name"].isin(selected_courses)][["course_name"]]
+    avg_dfw = courses[courses["course_name"].isin(selected_courses)]["DFW Rate (%)"].mean()
+    st.markdown("<div class='card'><h3 style='color: #003087;'>Selected Schedule</h3></div>", unsafe_allow_html=True)
     st.table(schedule_df.rename(columns={"course_name": "Course Name"}))
 
     # Calculate challenge score
+    gpa_score = (student_data["High School GPA"] / 4.0) * 40
+    rank_str = student_data["High School Class Rank"]
+    position, total = map(int, rank_str.split("/"))
+    rank_score = (1 - position / total) * 30
+    act_score = (student_data["ACT Composite"] / 36) * 20
+    college_gpa = student_data.get("College GPA", None)
+    dual_bonus = 5 if pd.notnull(college_gpa) else 0
+    first_gen_penalty = -5 if student_data["First Generation College Student"] == "yes" else 0
+    student_strength = gpa_score + rank_score + act_score + dual_bonus + first_gen_penalty
     challenge_score = (avg_dfw / 100) * (1 - student_strength / 100)
 
     # Tutoring option
-    tutoring = st.checkbox("Reviewed tutoring/support options")
+    tutoring = st.checkbox("Reviewed tutoring/support options", help="Check if tutoring or support was discussed to ease the schedule.")
     if tutoring:
         challenge_score *= 0.5  # Reduce challenge by 50%
 
     # Determine stop light rating
     if challenge_score < 0.15:
         risk = "Low Risk"
-        color = "green"
+        color = "#28a745"  # Brighter green
         message = "Great fit! This schedule aligns well with the student's preparation."
     elif challenge_score < 0.35:
         risk = "Moderate Risk"
-        color = "orange"
-        message = "Manageable with support. Review high-DFW courses or add tutoring."
+        color = "#ffc107"  # Warm yellow
+        message = "Manageable with support. Review courses or add tutoring."
     else:
         risk = "High Risk"
-        color = "red"
+        color = "#dc3545"  # Soft red
         message = "Ambitious schedule! Consider tutoring or adjusting courses to ensure success."
 
     # Display result
-    st.header("Schedule Assessment")
-    st.markdown(f"**Challenge Level**: <span style='color:{color}'>{risk}</span>", unsafe_allow_html=True)
+    st.markdown("<div class='section-divider'></div>", unsafe_allow_html=True)
+    st.markdown("<div class='card'><h2 style='color: #003087;'>Schedule Assessment</h2></div>", unsafe_allow_html=True)
+    st.markdown(f"**Challenge Level**: <span style='color:{color}; font-weight:bold;'>{risk}</span>", unsafe_allow_html=True)
     st.write(message)
     if tutoring:
         st.write("Tutoring/support added—schedule now feels more manageable!")
