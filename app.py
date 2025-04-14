@@ -4,20 +4,22 @@ import pandas as pd
 # Set page title and layout
 st.set_page_config(page_title="Advising Tool Demo", layout="centered")
 
-# Custom CSS for look and feel
+# Custom CSS for look and feel inspired by Mineral Area College
 st.markdown("""
     <style>
-    .main { background-color: #e6f0ff; padding: 20px; }
+    .main { background-color: #ffffff; padding: 20px; }
     .stSelectbox, .stCheckbox { margin-bottom: 15px; }
-    .stButton>button { background-color: #007bff; color: white; border-radius: 5px; }
-    .section-divider { border-top: 1px solid #ccc; margin: 20px 0; }
-    .card { background-color: white; padding: 15px; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    .stButton>button { background-color: #003366; color: white; border-radius: 5px; padding: 8px 16px; font-weight: bold; }
+    .section-divider { border-top: 1px solid #cccccc; margin: 20px 0; }
+    .card { background-color: #f5f5f5; padding: 15px; border-radius: 8px; margin-bottom: 10px; }
+    h1, h2, h3 { font-family: 'Arial', sans-serif; color: #003366; }
+    p, div { font-family: 'Arial', sans-serif; color: #333333; }
     </style>
 """, unsafe_allow_html=True)
 
 # Title
-st.markdown("<div class='card'><h1 style='color: #003087;'>First-Year Student Advising Tool 📚</h1></div>", unsafe_allow_html=True)
-st.markdown("<p style='font-size: 16px; color: #333;'>Help your student thrive with a balanced schedule!</p>", unsafe_allow_html=True)
+st.markdown("<div class='card'><h1>First-Year Student Advising Tool 📚</h1></div>", unsafe_allow_html=True)
+st.markdown("<p style='font-size: 16px;'>Set your student up for success with a balanced schedule!</p>", unsafe_allow_html=True)
 
 # Load data
 try:
@@ -31,7 +33,7 @@ except:
 courses["DFW Rate (%)"] = 100 - courses["pass_rate"].str.rstrip("%").astype(float)
 
 # Select student
-st.markdown("<div class='card'><h2 style='color: #003087;'>Select a Student</h2></div>", unsafe_allow_html=True)
+st.markdown("<div class='card'><h2>Select a Student</h2></div>", unsafe_allow_html=True)
 student_ids = students["Student ID"].astype(str).tolist()
 selected_student = st.selectbox("Choose a student:", student_ids, help="Select a student by their ID.")
 student_data = students[students["Student ID"] == int(selected_student)].iloc[0]
@@ -43,8 +45,8 @@ st.write(f"**Student ID**: {selected_student}")
 st.markdown("<div class='section-divider'></div>", unsafe_allow_html=True)
 
 # Select courses
-st.markdown("<div class='card'><h2 style='color: #003087;'>Build Schedule 📋</h2></div>", unsafe_allow_html=True)
-course_options = courses["course_name"].tolist()  # Use full course names
+st.markdown("<div class='card'><h2>Build Schedule 📋</h2></div>", unsafe_allow_html=True)
+course_options = courses["course_name"].tolist()
 if "num_courses" not in st.session_state:
     st.session_state.num_courses = 4
 
@@ -61,7 +63,7 @@ for i in range(st.session_state.num_courses):
 if selected_courses:
     schedule_df = courses[courses["course_name"].isin(selected_courses)][["course_name"]]
     avg_dfw = courses[courses["course_name"].isin(selected_courses)]["DFW Rate (%)"].mean()
-    st.markdown("<div class='card'><h3 style='color: #003087;'>Selected Schedule</h3></div>", unsafe_allow_html=True)
+    st.markdown("<div class='card'><h3>Selected Schedule</h3></div>", unsafe_allow_html=True)
     st.table(schedule_df.rename(columns={"course_name": "Course Name"}))
 
     # Calculate challenge score
@@ -77,27 +79,27 @@ if selected_courses:
     challenge_score = (avg_dfw / 100) * (1 - student_strength / 100)
 
     # Tutoring option
-    tutoring = st.checkbox("Reviewed tutoring/support options", help="Check if tutoring or support was discussed to ease the schedule.")
+    tutoring = st.checkbox("Reviewed tutoring/support options ✅", help="Check if tutoring or support was discussed to ease the schedule.")
     if tutoring:
         challenge_score *= 0.5  # Reduce challenge by 50%
 
     # Determine stop light rating
     if challenge_score < 0.15:
         risk = "Low Risk"
-        color = "#28a745"  # Brighter green
+        color = "#28a745"  # Green
         message = "Great fit! This schedule aligns well with the student's preparation."
     elif challenge_score < 0.35:
         risk = "Moderate Risk"
-        color = "#ffc107"  # Warm yellow
+        color = "#ffc107"  # Yellow
         message = "Manageable with support. Review courses or add tutoring."
     else:
         risk = "High Risk"
-        color = "#dc3545"  # Soft red
+        color = "#a6192e"  # Red from Mineral Area
         message = "Ambitious schedule! Consider tutoring or adjusting courses to ensure success."
 
     # Display result
     st.markdown("<div class='section-divider'></div>", unsafe_allow_html=True)
-    st.markdown("<div class='card'><h2 style='color: #003087;'>Schedule Assessment</h2></div>", unsafe_allow_html=True)
+    st.markdown("<div class='card'><h2>Schedule Assessment</h2></div>", unsafe_allow_html=True)
     st.markdown(f"**Challenge Level**: <span style='color:{color}; font-weight:bold;'>{risk}</span>", unsafe_allow_html=True)
     st.write(message)
     if tutoring:
