@@ -1,149 +1,98 @@
 import streamlit as st
 import pandas as pd
-import re
 
-st.set_page_config(page_title="Student Schedule Difficulty", layout="centered")
-st.title("🎓 Student Schedule Difficulty Estimator")
+# Set page title and layout
+st.set_page_config(page_title="Advising Tool Demo", layout="centered")
 
-@st.cache_data
-def load_data():
-    student_data = pd.read_excel("data/Student Data.xlsx")
-    course_pass_rates = pd.read_excel("data/full_atu_course_pass_rates_combined.xlsx")
-    course_pass_rates["course_code"] = course_pass_rates["course_name"].str.extract(r"(^[A-Z]{2,4} \d{4})")
-    return student_data, course_pass_rates
+# Title
+st.title("First-Year Student Advising Tool 📚")
+st.write("Assess a student's schedule difficulty based on their academic history and course DFW rates.")
 
-student_data, course_pass_rates = load_data()
+# Load data
+try:
+    students = pd.read_excel("Student Data.xlsx")
+    courses = pd.read_excel("full_atu_course_pass_rates_combined.xlsx")
+except:
+    st.error("Error: Please ensure 'Student Data.xlsx' and 'full_atu_course_pass_rates_combined.xlsx' are in the repository.")
+    st.stop()
 
-def calculate_student_quality_score(profile):
-    hs_gpa_score = (profile["High School GPA"] / 4.0) * 40
-    rank_n, rank_d = map(int, profile["High School Class Rank"].split('/'))
-    rank_percentile = (1 - (rank_n / rank_d)) * 100
-    rank_score = rank_percentile * 0.3
-    act_score = (profile["ACT Composite"] / 36) * 30
+# Calculate DFW rate
+courses["DFW Rate (%)"] = 100 - courses["pass_rate"].str.rstrip("%").astype(float)
 
-    bonus = 0
-    college_gpa = profile["College GPA"]
-    if not pd.isna(college_gpa):
-        if college_gpa >= 3.5:
-            bonus = 10
-        elif college_gpa >= 3.0:
-            bonus = 5
+# Select student
+st.header("Select a Student")
+student_ids = students["Student ID"].astype(str).tolist()
+selected_student = st.selectbox("Choose a student:", student_ids)
+student_data = students[students["Student ID"] == int(selected_student)].iloc[0]
 
-    return round(hs_gpa_score + rank_score + act_score + bonus)
+# Display student info
+st.write(f"**Student ID**: {selected_student}")
+st.write(f"**High School GPA**: {student_data['High School GPA']}")
+st.write(f"**ACT Composite**: {student_data['ACT Composite']}")
+st.write(f"**Class Rank**: {student_data['High School Class Rank']}")
+st.write(f"**First Generation**: {student_data['First Generation College Student']}")
+college_gpa = student_data.get("College GPA", None)
+st.write(f"**Dual Enrollment**: {'Yes' if pd.notnull(college_gpa) else 'No'}")
 
-def calculate_schedule_difficulty_score(course_codes):
-    rates = []
-    for code in course_codes:
-        match = course_pass_rates[course_pass_rates["course_code"] == code]
-        if not match.empty:
-            rate = int(match.iloc[0]["pass_rate"].replace('%', ''))
-            rates.append(100 - rate)
-    return round(sum(rates) / len(rates)) if rates else 0
+# Calculate student strength
+gpa_score = (student_data["High School GPA"] / 4.0) * 40
+rank_str = student_data["High School Class Rank"]
+position, total = map(int, rank_str.split("/"))
+rank_score = (1 - position / total) * 30
+act_score = (student_data["ACT Composite"] / 36) * 20
+dual_bonus = 5 if pd.notnull(college_gpa) else 0
+first_gen_penalty = -5 if student_data["First Generation College Student"] == "yes" else 0
+student_strength = gpa_score + rank_score + act_score + dual_bonus + first_gen_penalty
 
-def determine_schedule_indicator(student_quality, schedule_difficulty):
-    if student_quality >= 81:
-        if schedule_difficulty <= 40:
-            return "🟢 Green"
-        elif schedule_difficulty <= 70:
-            return "🟢 Green"
-        else:
-            return "🟡 Yellow"
-    elif student_quality >= 61:
-        if schedule_difficulty <= 40:
-            return "🟢 Green"
-        elif schedule_difficulty <= 70:
-            return "🟡 Yellow"
-        else:
-            return "🔴 Red"
+# Select courses
+st.header("Build Schedule")
+course_options = courses["course_code"].tolist()
+if "num_courses" not in st.session_state:
+    st.session_state.num_courses = 4
+
+if st.button("Add another course"):
+    st.session_state.num_courses += 1
+
+selected_courses = []
+for i in range(st.session_state.num_courses):
+    course = st.selectbox(f"Course {i + 1}", ["Select a course"] + course_options, key=f"course_{i}")
+    if course != "Select a course":
+        selected_courses.append(course)
+
+# Calculate schedule difficulty
+if selected_courses:
+    schedule_df = courses[courses["course_code"].isin(selected_courses)][["course_name", "DFW Rate (%)"]]
+    avg_dfw = schedule_df["DFW Rate (%)"].mean()
+    st.subheader("Selected Schedule")
+    st.table(schedule_df.rename(columns={"course_name": "Course Name"}))
+
+    # Calculate challenge score
+    challenge_score = (avg_dfw / 100) * (1 - student_strength / 100)
+
+    # Tutoring option
+    tutoring = st.checkbox("Reviewed tutoring/support options")
+    if tutoring:
+        challenge_score *= 0.5  # Reduce challenge by 50%
+
+    # Determine stop light rating
+    if challenge_score < 0.15:
+        risk = "Low Risk"
+        color = "green"
+        message = "Great fit! This schedule aligns well with the student's preparation."
+    elif challenge_score < 0.35:
+        risk = "Moderate Risk"
+        color = "orange"
+        message = "Manageable with support. Review high-DFW courses or add tutoring."
     else:
-        if schedule_difficulty <= 40:
-            return "🟡 Yellow"
-        else:
-            return "🔴 Red"
+        risk = "High Risk"
+        color = "red"
+        message = "Ambitious schedule! Consider tutoring or adjusting courses to ensure success."
 
-entered_id = st.text_input("Enter Student ID")
-
-if entered_id and entered_id in student_data["Student ID"].astype(str).values:
-    student_profile = student_data[student_data["Student ID"].astype(str) == entered_id].iloc[0]
-    available_courses = sorted(course_pass_rates["course_code"].dropna().unique().tolist())
-    st.subheader("📝 Build Proposed Schedule")
-
-    if "course_count" not in st.session_state:
-        st.session_state.course_count = 4
-    if "reanalyze" not in st.session_state:
-        st.session_state.reanalyze = False
-
-    course_selections = []
-    for i in range(st.session_state.course_count):
-        selected = st.selectbox(f"Course {i+1}", [""] + available_courses, index=0, key=f"course_{i}")
-        if selected:
-            course_selections.append(selected)
-
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button("➕ Add Course"):
-            st.session_state.course_count += 1
-            st.rerun()
-    with col2:
-        if st.session_state.course_count > 1 and st.button("➖ Remove Course"):
-            st.session_state.course_count -= 1
-            st.rerun()
-
-    if st.button("🔍 Analyze Schedule") or st.session_state.reanalyze:
-        student_quality = calculate_student_quality_score(student_profile)
-        schedule_difficulty = calculate_schedule_difficulty_score(course_selections)
-        risk_level = determine_schedule_indicator(student_quality, schedule_difficulty)
-
-        st.markdown("---")
-        st.markdown("<h3>📊 Schedule Evaluation</h3>", unsafe_allow_html=True)
-
-        color_map = {
-            "🟢": ("#e0ffe0", "#33cc33"),
-            "🟡": ("#fff8db", "#ffcc00"),
-            "🔴": ("#ffe0e0", "#ff4444")
-        }
-        icon = risk_level[0]
-        label = risk_level[2:]
-        bg_color, border_color = color_map.get(icon, ("#f0f0f0", "#ccc"))
-
-        st.markdown(f"""
-            <div style='background-color: {bg_color}; border-left: 10px solid {border_color}; padding: 1em; margin-top: 1em;'>
-                <h4>{icon} Schedule is {label}</h4>
-                <p>Based on the student profile and selected schedule, this plan is assessed as <strong>{label}</strong>.</p>
-            </div>
-        """, unsafe_allow_html=True)
-
-        if icon in ["🔴", "🟡"]:
-            st.markdown("---")
-            st.subheader("⚠️ Build a Supportive Alternate Schedule")
-            st.markdown("<p><strong>🔴 This schedule is currently too difficult based on the student's profile.</strong><br>Consider removing 1–2 of the flagged courses or replacing them with general education or support options.</p>", unsafe_allow_html=True)
-            reconsidered = False
-            for i, course_code in enumerate(course_selections):
-                match = course_pass_rates[course_pass_rates["course_code"] == course_code]
-                if not match.empty:
-                    rate = int(match.iloc[0]["pass_rate"].replace('%', ''))
-                    if rate < 50:
-                        reconsidered = True
-                        new_selection = st.selectbox(
-                            f"Replace {course_code} (Low pass rate: {rate}%)",
-                            [course_code] + [c for c in available_courses if c != course_code],
-                            key=f"replace_{i}"
-                        )
-                        if new_selection != course_code:
-                            st.session_state[f"course_{i}"] = new_selection
-                            st.session_state.reanalyze = True
-                            st.rerun()
-            if icon == "🔴" and not reconsidered:
-                st.warning("🔁 Please revise the schedule to improve the outcome before finalizing.")
-            if icon == "🔴" and reconsidered:
-                st.info("After making your changes, click the button below to re-check the schedule.")
-                if st.button("♻️ Re-check Schedule"):
-                    st.session_state.reanalyze = True
-                    st.rerun()
-
-        if st.session_state.reanalyze and icon in ["🟡", "🟢"]:
-            st.success("✅ Schedule improved! You've helped this student move toward a more manageable plan.")
-            st.session_state.reanalyze = False
-
-elif entered_id:
-    st.error("Student ID not found. Please check and try again.")
+    # Display result
+    st.header("Schedule Assessment")
+    st.markdown(f"**Challenge Level**: <span style='color:{color}'>{risk}</span>", unsafe_allow_html=True)
+    st.write(message)
+    if tutoring:
+        st.write("Tutoring/support added—schedule now feels more manageable!")
+else:
+    st.write("Please select at least one course to assess the schedule.")
