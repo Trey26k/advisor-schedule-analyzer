@@ -87,17 +87,14 @@ if selected_courses:
         avg_dfw = schedule_df["DFW Rate (%)"].mean()
         challenge_score = (avg_dfw / 100) * (1 - student_strength / 100)
 
-        # Tutoring option
-        tutoring = st.checkbox("Reviewed tutoring/support options ✅", help="Check if tutoring or support was discussed to ease the schedule.")
-        if tutoring:
-            challenge_score = challenge_score * 0.5  # Reduce challenge by 50%
-
+        # Tutoring option (moved below assessment)
+        tutoring = False  # Default
         # Identify most challenging course (only for moderate/high risk)
         most_challenging = None
         if challenge_score >= 0.15 and not schedule_df.empty:  # Only for yellow/red
             most_challenging = schedule_df.loc[schedule_df["DFW Rate (%)"].idxmax()]["course_name"]
         
-        # Format schedule table with highlight
+        # Format schedule table with initial highlight
         display_df = schedule_df[["course_name"]].rename(columns={"course_name": "Course Name"})
         if most_challenging:
             display_df["Course Name"] = display_df["Course Name"].apply(
@@ -107,7 +104,7 @@ if selected_courses:
         st.markdown("<div class='card'><h3>Selected Schedule</h3></div>", unsafe_allow_html=True)
         st.markdown(display_df.to_html(escape=False, index=False), unsafe_allow_html=True)
 
-        # Determine stop light rating
+        # Determine initial stop light rating
         if challenge_score < 0.15:
             risk = "Low Risk"
             color = "#28a745"  # Green
@@ -121,12 +118,46 @@ if selected_courses:
             color = "#a6192e"  # Red
             message = f"Ambitious schedule! Consider tutoring or adjusting courses{f' (e.g., {most_challenging})' if most_challenging else ''} to ensure success."
 
-        # Display result
+        # Display initial result
         st.markdown("<div class='section-divider'></div>", unsafe_allow_html=True)
         st.markdown("<div class='card'><h2>Schedule Assessment</h2></div>", unsafe_allow_html=True)
         st.markdown(f"**Challenge Level**: <span style='color:{color}; font-weight:bold;'>{risk}</span>", unsafe_allow_html=True)
         st.write(message)
+
+        # Tutoring option
+        tutoring = st.checkbox("Reviewed tutoring/support options ✅", help="Check if tutoring or support was discussed to ease the schedule.")
         if tutoring:
+            challenge_score = challenge_score * 0.5  # Reduce challenge by 50%
+            # Recalculate most challenging course (none if low risk)
+            most_challenging = None
+            if challenge_score >= 0.15 and not schedule_df.empty:
+                most_challenging = schedule_df.loc[schedule_df["DFW Rate (%)"].idxmax()]["course_name"]
+            
+            # Update schedule table
+            display_df = schedule_df[["course_name"]].rename(columns={"course_name": "Course Name"})
+            if most_challenging:
+                display_df["Course Name"] = display_df["Course Name"].apply(
+                    lambda x: f"<span class='highlight-red'>{x}</span>" if x == most_challenging else x
+                )
+            
+            st.markdown("<div class='card'><h3>Selected Schedule</h3></div>", unsafe_allow_html=True)
+            st.markdown(display_df.to_html(escape=False, index=False), unsafe_allow_html=True)
+
+            # Recalculate rating after tutoring
+            if challenge_score < 0.15:
+                risk = "Low Risk"
+                color = "#28a745"
+                message = "Great fit! With tutoring, this schedule aligns well."
+            elif challenge_score < 0.35:
+                risk = "Moderate Risk"
+                color = "#ffc107"
+                message = f"Manageable with tutoring. Consider reviewing courses{f' (e.g., {most_challenging})' if most_challenging else ''}."
+            else:
+                risk = "High Risk"
+                color = "#a6192e"
+                message = f"Still ambitious with tutoring. Consider adjusting courses{f' (e.g., {most_challenging})' if most_challenging else ''}."
+            st.markdown(f"**Updated Challenge Level**: <span style='color:{color}; font-weight:bold;'>{risk}</span>", unsafe_allow_html=True)
+            st.write(message)
             st.write("Tutoring/support added—schedule now feels more manageable!")
 
         # Send Schedule button
