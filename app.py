@@ -60,9 +60,17 @@ for i in range(st.session_state.num_courses):
     if course != "Select a course":
         selected_courses.append(course)
 
+# Initialize session state for analyze button
+if "analyze_clicked" not in st.session_state:
+    st.session_state.analyze_clicked = False
+
 # Analyze Schedule button
 if selected_courses:
     if st.button("Analyze Schedule", help="View the schedule difficulty and recommendations."):
+        st.session_state.analyze_clicked = True
+
+    # Show results if analyze button was clicked
+    if st.session_state.analyze_clicked:
         # Show schedule table
         schedule_df = courses[courses["course_name"].isin(selected_courses)][["course_name", "DFW Rate (%)"]]
         avg_dfw = schedule_df["DFW Rate (%)"].mean()
@@ -138,6 +146,7 @@ if selected_courses:
         # Send Schedule button
         st.markdown("<div class='section-divider'></div>", unsafe_allow_html=True)
         if st.button("Send Schedule", help="Send the schedule to the student's registration cart."):
+            st.session_state.analyze_clicked = True  # Keep results visible
             st.success("Your schedule has been sent to your student registration cart.")
 else:
     st.write("Please select at least one course to assess the schedule.")
