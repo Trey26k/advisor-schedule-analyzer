@@ -71,10 +71,6 @@ if selected_courses:
 
     # Show results if analyze button was clicked
     if st.session_state.analyze_clicked:
-        # Show schedule table
-        schedule_df = courses[courses["course_name"].isin(selected_courses)][["course_name", "DFW Rate (%)"]]
-        avg_dfw = schedule_df["DFW Rate (%)"].mean()
-        
         # Calculate challenge score
         gpa_score = (student_data["High School GPA"] / 4.0) * 40
         rank_str = student_data["High School Class Rank"]
@@ -85,6 +81,10 @@ if selected_courses:
         dual_bonus = 5 if pd.notnull(college_gpa) else 0
         first_gen_penalty = -5 if student_data["First Generation College Student"] == "yes" else 0
         student_strength = gpa_score + rank_score + act_score + dual_bonus + first_gen_penalty
+        
+        # Prepare schedule table
+        schedule_df = courses[courses["course_name"].isin(selected_courses)][["course_name", "DFW Rate (%)"]]
+        avg_dfw = schedule_df["DFW Rate (%)"].mean()
         challenge_score = (avg_dfw / 100) * (1 - student_strength / 100)
 
         # Identify most challenging course (only for moderate/high risk)
@@ -125,20 +125,35 @@ if selected_courses:
         # Tutoring option
         tutoring = st.checkbox("Reviewed tutoring/support options ✅", help="Check if tutoring or support was discussed to ease the schedule.")
         if tutoring:
-            challenge_score *= 0.5  # Reduce challenge by 50%
+            challenge_score_tutoring = challenge_score * 0.5  # Reduce challenge by 50%
+            # Recalculate most challenging course for tutoring (none if low risk)
+            most_challenging_tutoring = None
+            if challenge_score_tutoring >= 0.15 and not schedule_df.empty:
+                most_challenging_tutoring = schedule_df.loc[schedule_df["DFW Rate (%)"].idxmax()]["course_name"]
+            
+            # Update schedule table for tutoring
+            display_df_tutoring = schedule_df[["course_name"]].rename(columns={"course_name": "Course Name"})
+            if most_challenging_tutoring:
+                display_df_tutoring["Course Name"] = display_df_tutoring["Course Name"].apply(
+                    lambda x: f"<span class='highlight-red'>{x}</span>" if x == most_challenging_tutoring else x
+                )
+            
+            st.markdown("<div class='card'><h3>Updated Schedule with Tutoring</h3></div>", unsafe_allow_html=True)
+            st.markdown(display_df_tutoring.to_html(escape=False, index=False), unsafe_allow_html=True)
+
             # Recalculate rating after tutoring
-            if challenge_score < 0.15:
+            if challenge_score_tutoring < 0.15:
                 risk = "Low Risk"
                 color = "#28a745"
                 message = "Great fit! With tutoring, this schedule aligns well."
-            elif challenge_score < 0.35:
+            elif challenge_score_tutoring < 0.35:
                 risk = "Moderate Risk"
                 color = "#ffc107"
-                message = "Manageable with tutoring. Consider reviewing courses."
+                message = f"Manageable with tutoring. Consider reviewing courses{f' (e.g., {most_challenging_tutoring})' if most_challenging_tutoring else ''}."
             else:
                 risk = "High Risk"
                 color = "#a6192e"
-                message = "Still ambitious with tutoring. Consider adjusting courses."
+                message = f"Still ambitious with tutoring. Consider adjusting courses{f' (e.g., {most_challenging_tutoring})' if most_challenging_tutoring else ''}."
             st.markdown(f"**Updated Challenge Level**: <span style='color:{color}; font-weight:bold;'>{risk}</span>", unsafe_allow_html=True)
             st.write(message)
             st.write("Tutoring/support added—schedule now feels more manageable!")
