@@ -121,23 +121,21 @@ if page == "Advisor Tool":
         help="Choose courses for the schedule. Duplicates are not allowed."
     )
 
-    # Preview selected courses
-    if selected_courses:
-        st.markdown("<h3>Preview Selected Courses</h3>", unsafe_allow_html=True)
-        preview_df = pd.DataFrame({"Course Name": selected_courses})
-        st.table(preview_df)
-
-    # Initialize session state for analyze button and tutoring
-    if "analyze_clicked" not in st.session_state:
-        st.session_state.analyze_clicked = False
-    if "tutored_courses" not in st.session_state:
-        st.session_state.tutored_courses = []
-
-    # Analyze Schedule button
+    # Consolidated UI: Combine preview and analysis in one flow
     if selected_courses:
         if st.button("Analyze Schedule", help="View the schedule difficulty and recommendations."):
             st.session_state.analyze_clicked = True
             st.session_state.tutored_courses = []  # Reset tutoring on new analysis
+        else:
+            st.markdown("<h3>Preview Selected Courses</h3>", unsafe_allow_html=True)
+            preview_df = pd.DataFrame({"Course Name": selected_courses})
+            st.table(preview_df)
+
+        # Initialize session state
+        if "analyze_clicked" not in st.session_state:
+            st.session_state.analyze_clicked = False
+        if "tutored_courses" not in st.session_state:
+            st.session_state.tutored_courses = []
 
         # Show results if analyze button was clicked
         if st.session_state.analyze_clicked:
@@ -149,16 +147,23 @@ if page == "Advisor Tool":
                 st.warning("No valid courses selected. Please choose from the available options.")
                 st.stop()
             
-            # Calculate initial challenge score without tutoring to identify most challenging
-            initial_challenge_score = calculate_challenge_score(student_strength, schedule_df, [])
+            tutored_courses = st.session_state.tutored_courses
             
-            # Identify most challenging course based on initial DFW (only one, even if tutored later)
+            # Calculate challenge score with tutoring
+            challenge_score = calculate_challenge_score(student_strength, schedule_df, tutored_courses)
+            
+            # Identify most challenging course based on adjusted DFW (recompute after tutoring)
             most_challenging = None
-            if initial_challenge_score >= RISK_LOW_THRESHOLD and not schedule_df.empty:
-                most_challenging = schedule_df.loc[schedule_df["DFW Rate (%)"].idxmax()]["course_name"]
+            if challenge_score >= RISK_LOW_THRESHOLD and not schedule_df.empty:
+                adjusted_dfw = schedule_df["DFW Rate (%)"].copy()
+                for course in tutored_courses:
+                    idx = schedule_df[schedule_df["course_name"] == course].index
+                    if not idx.empty:
+                        adjusted_dfw.loc[idx] *= TUTORING_REDUCTION_FACTOR
+                most_challenging = schedule_df.loc[adjusted_dfw.idxmax(), "course_name"]
             
-            # Combined Selected Schedule and Tutoring Options
-            st.markdown("<div class='card'><h3>Selected Schedule with Tutoring Options</h3></div>", unsafe_allow_html=True)
+            # Combined Selected Schedule and Tutoring Options (consolidated)
+            st.markdown("<div class='card'><h3>Schedule with Tutoring Options</h3></div>", unsafe_allow_html=True)
             tutored_courses = []
             for course in schedule_df["course_name"]:
                 is_challenging = course == most_challenging
@@ -170,68 +175,45 @@ if page == "Advisor Tool":
                     tutor_check = st.checkbox("Tutor", key=f"tutor_{course}", help="Checking this box will enroll student in tutoring reminders for this course.")
                     if tutor_check:
                         tutored_courses.append(course)
-            st.session_state.tutored_courses = tutored_courses
+            st.session_state.tutored_courses = tutored_courses  # Update session state
             
-            # Calculate final challenge score with tutoring adjustments
-            challenge_score = calculate_challenge_score(student_strength, schedule_df, tutored_courses)
-            
-            # For demo: If tutoring is added (especially to challenging course), force downgrade risk level
-            initial_risk_level = None
-            if initial_challenge_score < RISK_LOW_THRESHOLD:
-                initial_risk_level = "Low"
-            elif initial_challenge_score < RISK_MODERATE_THRESHOLD:
-                initial_risk_level = "Moderate"
-            else:
-                initial_risk_level = "High"
-            
-            # If any tutoring added, downgrade risk for demo
-            if tutored_courses:
-                if initial_risk_level == "High":
-                    risk = "Moderate Risk"
-                    color = "#ffc107"  # Yellow
-                elif initial_risk_level == "Moderate":
-                    risk = "Low Risk"
-                    color = "#28a745"  # Green
-                else:
-                    risk = "Low Risk"
-                    color = "#28a745"
-                message = f"Manageable with selected tutoring. Consider reviewing courses{f' (e.g., {most_challenging})' if most_challenging else ''}."
-                if initial_risk_level == "Low":
+            # Determine risk rating based on current challenge score
+            if challenge_score < RISK_LOW_THRESHOLD:
+                risk = "Low Risk"
+                color = "#28a745"  # Green
+                message = "Great fit! This schedule aligns well with the student's preparation."
+                if tutored_courses:
                     message = "Great fit! With selected tutoring, this schedule aligns well."
+            elif challenge_score < RISK_MODERATE_THRESHOLD:
+                risk = "Moderate Risk"
+                color = "#ffc107"  # Yellow
+                message = f"Manageable with support. Consider reviewing courses{f' (e.g., {most_challenging})' if most_challenging else ''} or adding more tutoring."
+                if tutored_courses:
+                    message = f"Manageable with selected tutoring. Consider reviewing courses{f' (e.g., {most_challenging})' if most_challenging else ''}."
             else:
-                # No tutoring: use calculated
-                if challenge_score < RISK_LOW_THRESHOLD:
-                    risk = "Low Risk"
-                    color = "#28a745"  # Green
-                    message = "Great fit! This schedule aligns well with the student's preparation."
-                elif challenge_score < RISK_MODERATE_THRESHOLD:
-                    risk = "Moderate Risk"
-                    color = "#ffc107"  # Yellow
-                    message = f"Manageable with support. Consider reviewing courses{f' (e.g., {most_challenging})' if most_challenging else ''} or adding tutoring."
-                else:
-                    risk = "High Risk"
-                    color = "#a6192e"  # Red
-                    message = f"Ambitious schedule! Consider adding tutoring or adjusting courses{f' (e.g., {most_challenging})' if most_challenging else ''} to ensure success."
+                risk = "High Risk"
+                color = "#a6192e"  # Red
+                message = f"Ambitious schedule! Consider adding tutoring or adjusting courses{f' (e.g., {most_challenging})' if most_challenging else ''} to ensure success."
+                if tutored_courses:
+                    message = f"Still ambitious with selected tutoring. Consider adjusting courses{f' (e.g., {most_challenging})' if most_challenging else ''}."
 
-            # Display result
-            st.markdown("<div class='section-divider'></div>", unsafe_allow_html=True)
-            st.markdown("<div class='card'><h2>Schedule Assessment</h2></div>", unsafe_allow_html=True)
+            # Display result (consolidated below the schedule)
             st.markdown(f"**Challenge Level**: <span style='color:{color}; font-weight:bold;'>{risk}</span>", unsafe_allow_html=True)
             st.write(message)
             if tutored_courses:
                 st.write(f"Tutoring selected for: {', '.join(tutored_courses)}—schedule now feels more manageable!")
 
-            # Send Schedule button
-            st.markdown("<div class='section-divider'></div>", unsafe_allow_html=True)
-            if st.button("Send Schedule", help="Send the schedule to the student's registration cart."):
-                st.success("Your schedule has been sent to your student registration cart.")
-                # In production, here you'd integrate with CRM to set reminders for tutored courses
-            
-            # Reset button
-            if st.button("Reset Analysis", help="Clear the analysis and start over."):
-                st.session_state.analyze_clicked = False
-                st.session_state.tutored_courses = []
-                st.rerun()
+            # Actions
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button("Send Schedule", help="Send the schedule to the student's registration cart."):
+                    st.success("Your schedule has been sent to your student registration cart.")
+                    # In production, here you'd integrate with CRM to set reminders for tutored courses
+            with col2:
+                if st.button("Reset Analysis", help="Clear the analysis and start over."):
+                    st.session_state.analyze_clicked = False
+                    st.session_state.tutored_courses = []
+                    st.rerun()
     else:
         st.write("Please select at least one course to assess the schedule.")
 
@@ -247,40 +229,52 @@ elif page == "Tutoring Allocation Dashboard":
     ]
     subjects = ["CHEM", "BIO", "MATH", "MATH", "MATH", "CHEM", "PHYS", "ECON", "ACCT", "ENGL"]
     gen_ed = [True, True, True, True, False, False, True, True, False, True]  # Assume some are gen ed
+    classifications = np.random.choice(["Freshman", "Sophomore", "Junior", "Senior"], len(realistic_courses))
     fake_data = pd.DataFrame({
         "Course Name": realistic_courses,
         "Subject": subjects,
         "General Education": gen_ed,
+        "Classification": classifications,
         "Students Flagged": np.random.randint(20, 100, len(realistic_courses)),
         "Estimated Hours Needed": np.random.randint(50, 500, len(realistic_courses)),
     })
     
-    # Filters
-    all_subjects = sorted(set(fake_data["Subject"]))
-    subject_filter = st.multiselect("Filter by Subject", all_subjects, default=all_subjects)
-    gen_ed_only = st.checkbox("General Education Courses Only", value=False)
+    # Initial view: Top 8 courses by estimated hours
+    top_8 = fake_data.sort_values("Estimated Hours Needed", ascending=False).head(8)
+    st.markdown("<h3>Top 8 Courses Needing Tutoring (by Estimated Hours)</h3>", unsafe_allow_html=True)
+    st.dataframe(top_8[["Course Name", "Subject", "Classification", "Estimated Hours Needed", "Students Flagged"]])
     
-    filtered_data = fake_data[fake_data["Subject"].isin(subject_filter)]
+    # Filters for slicing
+    st.markdown("<h3>Filter Views</h3>", unsafe_allow_html=True)
+    all_subjects = sorted(set(fake_data["Subject"]))
+    subject_filter = st.multiselect("View by Subject", all_subjects)
+    gen_ed_only = st.checkbox("View General Education Courses Only", value=False)
+    all_classifications = sorted(set(fake_data["Classification"]))
+    class_filter = st.multiselect("Slice by Classification", all_classifications)
+    
+    filtered_data = fake_data.copy()
+    if subject_filter:
+        filtered_data = filtered_data[filtered_data["Subject"].isin(subject_filter)]
     if gen_ed_only:
         filtered_data = filtered_data[filtered_data["General Education"]]
-    
-    # Sort by hours descending for top needed
+    if class_filter:
+        filtered_data = filtered_data[filtered_data["Classification"].isin(class_filter)]
     filtered_data = filtered_data.sort_values("Estimated Hours Needed", ascending=False)
     
-    # KPI metrics
+    # Filtered view
+    if not filtered_data.empty:
+        st.markdown("<h3>Filtered Tutoring Needs</h3>", unsafe_allow_html=True)
+        st.dataframe(filtered_data[["Course Name", "Subject", "Classification", "Estimated Hours Needed", "Students Flagged"]])
+        
+        st.markdown("<h3>Estimated Hours by Course (Filtered)</h3>", unsafe_allow_html=True)
+        st.bar_chart(filtered_data.set_index("Course Name")["Estimated Hours Needed"])
+    
+    # KPI metrics for filtered data
     col1, col2 = st.columns(2)
     with col1:
         st.metric("Total Students Needing Tutoring", filtered_data["Students Flagged"].sum())
     with col2:
         st.metric("Total Estimated Hours", filtered_data["Estimated Hours Needed"].sum())
-    
-    # Summary table
-    st.markdown("<h3>Top Needed Tutoring Courses by Hours</h3>", unsafe_allow_html=True)
-    st.dataframe(filtered_data[["Course Name", "Subject", "Estimated Hours Needed", "Students Flagged"]])
-    
-    # Bar chart
-    st.markdown("<h3>Estimated Hours by Course</h3>", unsafe_allow_html=True)
-    st.bar_chart(filtered_data.set_index("Course Name")["Estimated Hours Needed"])
 
     st.write("This dashboard simulates aggregated data from advising sessions. In production, it would pull from CRM integrations for real-time planning.")
 
