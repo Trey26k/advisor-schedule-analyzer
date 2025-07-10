@@ -147,17 +147,23 @@ if page == "Advisor Tool":
                 st.warning("No valid courses selected. Please choose from the available options.")
                 st.stop()
             
-            tutored_courses = st.session_state.tutored_courses
+            # Remember old tutored for change detection
+            old_tutored = st.session_state.tutored_courses.copy()
             
-            # Calculate initial challenge score without tutoring
-            initial_challenge_score = calculate_challenge_score(student_strength, schedule_df, [])
+            # Combined Selected Schedule and Tutoring Options (consolidated)
+            st.markdown("<div class='card'><h3>Schedule with Tutoring Options</h3></div>", unsafe_allow_html=True)
+            tutored_courses = []
+            for course in schedule_df["course_name"]:
+                tutor_check = st.checkbox(f"Tutor for {course}", key=f"tutor_{course}", help="Checking this box will enroll student in tutoring reminders for this course.")
+                if tutor_check:
+                    tutored_courses.append(course)
             
-            # Identify initial most challenging course
-            initial_most_challenging = None
-            if initial_challenge_score >= RISK_LOW_THRESHOLD and not schedule_df.empty:
-                initial_most_challenging = schedule_df.loc[schedule_df["DFW Rate (%)"].idxmax()]["course_name"]
+            # Update session and rerun if changed for immediate update
+            if sorted(old_tutored) != sorted(tutored_courses):
+                st.session_state.tutored_courses = tutored_courses
+                st.rerun()
             
-            # Calculate current challenge score with tutoring
+            # Now calculate with updated tutored_courses
             challenge_score = calculate_challenge_score(student_strength, schedule_df, tutored_courses)
             
             # Identify current most challenging course based on adjusted DFW
@@ -170,22 +176,18 @@ if page == "Advisor Tool":
                         adjusted_dfw.loc[idx] *= TUTORING_REDUCTION_FACTOR
                 most_challenging = schedule_df.loc[adjusted_dfw.idxmax(), "course_name"]
             
-            # Combined Selected Schedule and Tutoring Options (consolidated)
-            st.markdown("<div class='card'><h3>Schedule with Tutoring Options</h3></div>", unsafe_allow_html=True)
-            tutored_courses = []
+            # Display courses with dynamic highlight (separate loop for display)
             for course in schedule_df["course_name"]:
-                is_challenging = (course == most_challenging) and (course not in st.session_state.tutored_courses)
+                is_challenging = (course == most_challenging) and (course not in tutored_courses)
                 course_display = f"<span class='highlight-red'>{course}</span>" if is_challenging else course
-                col1, col2 = st.columns([3, 1])
-                with col1:
-                    st.markdown(course_display, unsafe_allow_html=True)
-                with col2:
-                    tutor_check = st.checkbox("Tutor", key=f"tutor_{course}", help="Checking this box will enroll student in tutoring reminders for this course.")
-                    if tutor_check:
-                        tutored_courses.append(course)
-            st.session_state.tutored_courses = tutored_courses  # Update session state
+                st.markdown(course_display, unsafe_allow_html=True)
             
             # Risk downgrade logic: If the initial flagged course is tutored, force downgrade by one level
+            initial_challenge_score = calculate_challenge_score(student_strength, schedule_df, [])
+            initial_most_challenging = None
+            if initial_challenge_score >= RISK_LOW_THRESHOLD and not schedule_df.empty:
+                initial_most_challenging = schedule_df.loc[schedule_df["DFW Rate (%)"].idxmax()]["course_name"]
+            
             downgrade = initial_most_challenging in tutored_courses if initial_most_challenging else False
             
             # Determine initial risk level without tutoring
@@ -358,4 +360,4 @@ elif page == "DFW Spotlight":
     pivot_df = filtered_data.pivot(index="Course Name", columns="Semester", values="DFW Rate (%)")
     st.bar_chart(pivot_df)
 
-    st.write("This dashboard uses simulated data. In production, it would integrate with school systems for accurate tracking.")    
+    st.write("This dashboard uses simulated data. In production, it would integrate with school systems for accurate tracking.")
