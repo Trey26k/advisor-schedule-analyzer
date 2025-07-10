@@ -92,7 +92,7 @@ def calculate_challenge_score(student_strength, schedule_df, tutored_courses):
     return (avg_dfw / 100) * (1 - student_strength / 100)
 
 # Multi-page navigation
-page = st.sidebar.selectbox("Select View", ["Advisor Tool", "Tutoring Allocation Dashboard", "Retention Insights Dashboard"])
+page = st.sidebar.selectbox("Select View", ["Advisor Tool", "Tutoring Allocation Dashboard", "DFW Spotlight"])
 
 if page == "Advisor Tool":
     # Title
@@ -239,91 +239,98 @@ elif page == "Tutoring Allocation Dashboard":
     st.markdown("<div class='card'><h1>Tutoring Allocation Dashboard 📊</h1></div>", unsafe_allow_html=True)
     st.markdown("<p style='font-size: 16px;'>Plan and allocate tutoring resources based on flagged needs across students.</p>", unsafe_allow_html=True)
     
-    # Generate fake data for dashboard (simulating aggregated advising sessions)
-    np.random.seed(42)  # For reproducibility
-    fake_courses = courses["course_name"].sample(10).tolist()  # Sample from real courses if available
-    fake_data = pd.DataFrame({
-        "Course Name": np.random.choice(fake_courses, 50),
-        "Students Flagged": np.random.randint(5, 50, 50),
-        "Estimated Hours Needed": np.random.randint(10, 200, 50),
-        "Priority": np.random.choice(["High", "Medium", "Low"], 50)
-    }).groupby("Course Name").sum().reset_index()
-    fake_data["Priority"] = pd.cut(fake_data["Students Flagged"], bins=[0, 20, 40, np.inf], labels=["Low", "Medium", "High"])
-    
-    # Filters for dynamic interaction
-    priority_filter = st.multiselect("Filter by Priority", ["High", "Medium", "Low"], default=["High", "Medium", "Low"])
-    filtered_data = fake_data[fake_data["Priority"].isin(priority_filter)]
-    
-    # KPI metrics
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.metric("Total Students Needing Tutoring", fake_data["Students Flagged"].sum())
-    with col2:
-        st.metric("Total Estimated Hours", fake_data["Estimated Hours Needed"].sum())
-    with col3:
-        st.metric("High Priority Courses", len(fake_data[fake_data["Priority"] == "High"]))
-    
-    # Table and chart
-    st.markdown("<h3>Course Tutoring Needs</h3>", unsafe_allow_html=True)
-    st.dataframe(filtered_data.style.highlight_max(subset=["Students Flagged"], color="#ffc107"))
-    
-    st.markdown("<h3>Visualization</h3>", unsafe_allow_html=True)
-    st.bar_chart(filtered_data.set_index("Course Name")["Students Flagged"])
-
-    st.write("This dashboard simulates aggregated data from advising sessions. In production, it would pull from CRM integrations for real-time planning.")
-
-elif page == "Retention Insights Dashboard":
-    st.markdown("<div class='card'><h1>Retention Insights Dashboard 📈</h1></div>", unsafe_allow_html=True)
-    st.markdown("<p style='font-size: 16px;'>Track cohort performance and predict retention based on advising data.</p>", unsafe_allow_html=True)
-    
-    # Generate fake data for this dashboard
+    # Realistic fake data for tutoring needs
     np.random.seed(42)
-    fake_cohorts = ["Fall 2024", "Spring 2025", "Fall 2025"]
+    realistic_courses = [
+        "General Chemistry", "Introductory Biology", "College Algebra", "Calculus I", "Trigonometry",
+        "Organic Chemistry", "Physics I", "Microeconomics", "Accounting I", "English Composition"
+    ]
+    subjects = ["CHEM", "BIO", "MATH", "MATH", "MATH", "CHEM", "PHYS", "ECON", "ACCT", "ENGL"]
+    gen_ed = [True, True, True, True, False, False, True, True, False, True]  # Assume some are gen ed
     fake_data = pd.DataFrame({
-        "Cohort": np.random.choice(fake_cohorts, 100),
-        "Risk Level": np.random.choice(["Low", "Moderate", "High"], 100),
-        "Adjusted with Tool": np.random.choice([True, False], 100),
-        "Predicted Retention Rate": np.random.uniform(70, 95, 100)
+        "Course Name": realistic_courses,
+        "Subject": subjects,
+        "General Education": gen_ed,
+        "Students Flagged": np.random.randint(20, 100, len(realistic_courses)),
+        "Estimated Hours Needed": np.random.randint(50, 500, len(realistic_courses)),
     })
     
     # Filters
-    cohort_filter = st.multiselect("Filter by Cohort", fake_cohorts, default=fake_cohorts)
-    filtered_data = fake_data[fake_data["Cohort"].isin(cohort_filter)]
+    all_subjects = sorted(set(fake_data["Subject"]))
+    subject_filter = st.multiselect("Filter by Subject", all_subjects, default=all_subjects)
+    gen_ed_only = st.checkbox("General Education Courses Only", value=False)
     
-    # Compute metrics separately to avoid long lines
-    if len(filtered_data) > 0:
-        high_risk_pct = (len(filtered_data[filtered_data['Risk Level'] == 'High']) / len(filtered_data)) * 100
-    else:
-        high_risk_pct = 0
-    high_risk_str = f"{high_risk_pct:.1f}%"
-
-    avg_retention = filtered_data['Predicted Retention Rate'].mean()
-    avg_retention_str = f"{avg_retention:.1f}%"
-
-    adjusted_mean = filtered_data[filtered_data['Adjusted with Tool']]['Predicted Retention Rate'].mean()
-    non_adjusted_mean = filtered_data[~filtered_data['Adjusted with Tool']]['Predicted Retention Rate'].mean()
-    improvement = adjusted_mean - non_adjusted_mean
-    improvement_str = f"{improvement:.1f}%"
-
+    filtered_data = fake_data[fake_data["Subject"].isin(subject_filter)]
+    if gen_ed_only:
+        filtered_data = filtered_data[filtered_data["General Education"]]
+    
+    # Sort by hours descending for top needed
+    filtered_data = filtered_data.sort_values("Estimated Hours Needed", ascending=False)
+    
     # KPI metrics
-    col1, col2, col3 = st.columns(3)
+    col1, col2 = st.columns(2)
     with col1:
-        st.metric("Average Retention Rate", avg_retention_str)
+        st.metric("Total Students Needing Tutoring", filtered_data["Students Flagged"].sum())
     with col2:
-        st.metric("% High Risk Students", high_risk_str)
-    with col3:
-        st.metric("Improvement from Tool", improvement_str)
+        st.metric("Total Estimated Hours", filtered_data["Estimated Hours Needed"].sum())
     
-    # Aggregated table
-    agg_data = filtered_data.groupby(["Cohort", "Risk Level"]).agg({
-        "Predicted Retention Rate": "mean",
-        "Adjusted with Tool": "count"
-    }).rename(columns={"Adjusted with Tool": "Student Count"}).reset_index()
-    st.markdown("<h3>Cohort Insights</h3>", unsafe_allow_html=True)
-    st.dataframe(agg_data)
+    # Summary table
+    st.markdown("<h3>Top Needed Tutoring Courses by Hours</h3>", unsafe_allow_html=True)
+    st.dataframe(filtered_data[["Course Name", "Subject", "Estimated Hours Needed", "Students Flagged"]])
     
-    # Chart
-    st.markdown("<h3>Retention by Risk Level</h3>", unsafe_allow_html=True)
-    st.line_chart(agg_data.pivot(index="Cohort", columns="Risk Level", values="Predicted Retention Rate"))
+    # Bar chart
+    st.markdown("<h3>Estimated Hours by Course</h3>", unsafe_allow_html=True)
+    st.bar_chart(filtered_data.set_index("Course Name")["Estimated Hours Needed"])
+
+    st.write("This dashboard simulates aggregated data from advising sessions. In production, it would pull from CRM integrations for real-time planning.")
+
+elif page == "DFW Spotlight":
+    st.markdown("<div class='card'><h1>DFW Spotlight 📊</h1></div>", unsafe_allow_html=True)
+    st.markdown("<p style='font-size: 16px;'>Track and compare DFW rates across semesters and subjects. Auto-flags outliers above 40%.</p>", unsafe_allow_html=True)
     
-    st.write("This dashboard uses simulated data to show potential insights. In reality, it would analyze historical advising outcomes for predictive analytics.")
+    # Fake data for DFW rates
+    np.random.seed(42)
+    realistic_courses = [
+        "General Chemistry", "Introductory Biology", "College Algebra", "Calculus I", "Trigonometry",
+        "Organic Chemistry", "Physics I", "Microeconomics", "Accounting I", "English Composition"
+    ]
+    subjects = ["CHEM", "BIO", "MATH", "MATH", "MATH", "CHEM", "PHYS", "ECON", "ACCT", "ENGL"]
+    semesters = ["Fall 2024", "Spring 2025", "Fall 2025"]
+    # Create multi-semester data
+    fake_data = pd.DataFrame({
+        "Course Name": np.repeat(realistic_courses, len(semesters)),
+        "Subject": np.repeat(subjects, len(semesters)),
+        "Semester": np.tile(semesters, len(realistic_courses)),
+        "DFW Rate (%)": np.random.uniform(20, 60, len(realistic_courses) * len(semesters)),
+    })
+    fake_data["Outlier"] = fake_data["DFW Rate (%)"] > 40  # Auto-flag
+    
+    # Filters
+    all_semesters = sorted(set(fake_data["Semester"]))
+    semester_filter = st.multiselect("Compare Semesters", all_semesters, default=all_semesters)
+    all_subjects = sorted(set(fake_data["Subject"]))
+    subject_filter = st.multiselect("Filter by Subject", all_subjects, default=all_subjects)
+    
+    filtered_data = fake_data[fake_data["Semester"].isin(semester_filter) & fake_data["Subject"].isin(subject_filter)]
+    
+    # Highlight outliers in table
+    def highlight_outliers(row):
+        return ['background-color: #ffc107' if row["Outlier"] else '' for _ in row]
+    
+    # KPI metrics
+    col1, col2 = st.columns(2)
+    with col1:
+        st.metric("Average DFW Rate", f"{filtered_data['DFW Rate (%)'].mean():.1f}%")
+    with col2:
+        st.metric("Outlier Courses", len(filtered_data[filtered_data["Outlier"]]))
+    
+    # Table
+    st.markdown("<h3>DFW Rates by Course and Semester</h3>", unsafe_allow_html=True)
+    st.dataframe(filtered_data.style.apply(highlight_outliers, axis=1))
+    
+    # Comparison chart
+    st.markdown("<h3>DFW Rate Comparison</h3>", unsafe_allow_html=True)
+    pivot_df = filtered_data.pivot(index="Course Name", columns="Semester", values="DFW Rate (%)")
+    st.bar_chart(pivot_df)
+
+    st.write("This dashboard uses simulated data. In production, it would integrate with school systems for accurate tracking.")
