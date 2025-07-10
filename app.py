@@ -283,9 +283,40 @@ elif page == "Retention Insights Dashboard":
     cohort_filter = st.multiselect("Filter by Cohort", fake_cohorts, default=fake_cohorts)
     filtered_data = fake_data[fake_data["Cohort"].isin(cohort_filter)]
     
+    # Compute metrics separately to avoid long lines
+    if len(filtered_data) > 0:
+        high_risk_pct = (len(filtered_data[filtered_data['Risk Level'] == 'High']) / len(filtered_data)) * 100
+    else:
+        high_risk_pct = 0
+    high_risk_str = f"{high_risk_pct:.1f}%"
+
+    avg_retention = filtered_data['Predicted Retention Rate'].mean()
+    avg_retention_str = f"{avg_retention:.1f}%"
+
+    adjusted_mean = filtered_data[filtered_data['Adjusted with Tool']]['Predicted Retention Rate'].mean()
+    non_adjusted_mean = filtered_data[~filtered_data['Adjusted with Tool']]['Predicted Retention Rate'].mean()
+    improvement = adjusted_mean - non_adjusted_mean
+    improvement_str = f"{improvement:.1f}%"
+
     # KPI metrics
     col1, col2, col3 = st.columns(3)
     with col1:
-        st.metric("Average Retention Rate", f"{filtered_data['Predicted Retention Rate'].mean():.1f}%")
+        st.metric("Average Retention Rate", avg_retention_str)
     with col2:
-        st.metric("% High Risk Students", f"{(len(filtered_data[filtered
+        st.metric("% High Risk Students", high_risk_str)
+    with col3:
+        st.metric("Improvement from Tool", improvement_str)
+    
+    # Aggregated table
+    agg_data = filtered_data.groupby(["Cohort", "Risk Level"]).agg({
+        "Predicted Retention Rate": "mean",
+        "Adjusted with Tool": "count"
+    }).rename(columns={"Adjusted with Tool": "Student Count"}).reset_index()
+    st.markdown("<h3>Cohort Insights</h3>", unsafe_allow_html=True)
+    st.dataframe(agg_data)
+    
+    # Chart
+    st.markdown("<h3>Retention by Risk Level</h3>", unsafe_allow_html=True)
+    st.line_chart(agg_data.pivot(index="Cohort", columns="Risk Level", values="Predicted Retention Rate"))
+    
+    st.write("This dashboard uses simulated data to show potential insights. In reality, it would analyze historical advising outcomes for predictive analytics.")
