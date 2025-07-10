@@ -149,62 +149,69 @@ if page == "Advisor Tool":
                 st.warning("No valid courses selected. Please choose from the available options.")
                 st.stop()
             
-            # Per-course tutoring checkboxes
-            st.markdown("<div class='card'><h3>Tutoring Options</h3></div>", unsafe_allow_html=True)
+            # Calculate initial challenge score without tutoring to identify most challenging
+            initial_challenge_score = calculate_challenge_score(student_strength, schedule_df, [])
+            
+            # Identify most challenging course based on initial DFW (only one, even if tutored later)
+            most_challenging = None
+            if initial_challenge_score >= RISK_LOW_THRESHOLD and not schedule_df.empty:
+                most_challenging = schedule_df.loc[schedule_df["DFW Rate (%)"].idxmax()]["course_name"]
+            
+            # Combined Selected Schedule and Tutoring Options
+            st.markdown("<div class='card'><h3>Selected Schedule with Tutoring Options</h3></div>", unsafe_allow_html=True)
             tutored_courses = []
             for course in schedule_df["course_name"]:
+                is_challenging = course == most_challenging
+                course_display = f"<span class='highlight-red'>{course}</span>" if is_challenging else course
                 col1, col2 = st.columns([3, 1])
                 with col1:
-                    st.write(course)
+                    st.markdown(course_display, unsafe_allow_html=True)
                 with col2:
                     tutor_check = st.checkbox("Tutor", key=f"tutor_{course}", help="Checking this box will enroll student in tutoring reminders for this course.")
                     if tutor_check:
                         tutored_courses.append(course)
             st.session_state.tutored_courses = tutored_courses
             
-            # Calculate challenge score with tutoring adjustments
+            # Calculate final challenge score with tutoring adjustments
             challenge_score = calculate_challenge_score(student_strength, schedule_df, tutored_courses)
             
-            # Identify most challenging course if above low risk (considering adjusted DFW)
-            most_challenging = None
-            if challenge_score >= RISK_LOW_THRESHOLD and not schedule_df.empty:
-                adjusted_dfw = schedule_df["DFW Rate (%)"].copy()
-                for course in tutored_courses:
-                    idx = schedule_df[schedule_df["course_name"] == course].index
-                    if not idx.empty:
-                        adjusted_dfw.loc[idx] *= TUTORING_REDUCTION_FACTOR
-                most_challenging_idx = adjusted_dfw.idxmax()
-                most_challenging = schedule_df.loc[most_challenging_idx, "course_name"]
-            
-            # Format schedule table with highlight
-            display_df = schedule_df[["course_name"]].rename(columns={"course_name": "Course Name"})
-            if most_challenging:
-                display_df["Course Name"] = display_df["Course Name"].apply(
-                    lambda x: f"<span class='highlight-red'>{x}</span>" if x == most_challenging else x
-                )
-            
-            st.markdown("<div class='card'><h3>Selected Schedule</h3></div>", unsafe_allow_html=True)
-            st.markdown(display_df.to_html(escape=False, index=False), unsafe_allow_html=True)
-            
-            # Determine risk rating
-            if challenge_score < RISK_LOW_THRESHOLD:
-                risk = "Low Risk"
-                color = "#28a745"  # Green
-                message = "Great fit! This schedule aligns well with the student's preparation."
-                if tutored_courses:
-                    message = "Great fit! With selected tutoring, this schedule aligns well."
-            elif challenge_score < RISK_MODERATE_THRESHOLD:
-                risk = "Moderate Risk"
-                color = "#ffc107"  # Yellow
-                message = f"Manageable with support. Consider reviewing courses{f' (e.g., {most_challenging})' if most_challenging else ''} or adding more tutoring."
-                if tutored_courses:
-                    message = f"Manageable with selected tutoring. Consider reviewing courses{f' (e.g., {most_challenging})' if most_challenging else ''}."
+            # For demo: If tutoring is added (especially to challenging course), force downgrade risk level
+            initial_risk_level = None
+            if initial_challenge_score < RISK_LOW_THRESHOLD:
+                initial_risk_level = "Low"
+            elif initial_challenge_score < RISK_MODERATE_THRESHOLD:
+                initial_risk_level = "Moderate"
             else:
-                risk = "High Risk"
-                color = "#a6192e"  # Red
-                message = f"Ambitious schedule! Consider adding tutoring or adjusting courses{f' (e.g., {most_challenging})' if most_challenging else ''} to ensure success."
-                if tutored_courses:
-                    message = f"Still ambitious with selected tutoring. Consider adjusting courses{f' (e.g., {most_challenging})' if most_challenging else ''}."
+                initial_risk_level = "High"
+            
+            # If any tutoring added, downgrade risk for demo
+            if tutored_courses:
+                if initial_risk_level == "High":
+                    risk = "Moderate Risk"
+                    color = "#ffc107"  # Yellow
+                elif initial_risk_level == "Moderate":
+                    risk = "Low Risk"
+                    color = "#28a745"  # Green
+                else:
+                    risk = "Low Risk"
+                    color = "#28a745"
+                message = f"Manageable with selected tutoring. Consider reviewing courses{f' (e.g., {most_challenging})' if most_challenging else ''}."
+                if initial_risk_level == "Low":
+                    message = "Great fit! With selected tutoring, this schedule aligns well."
+            else:
+                # No tutoring: use calculated
+                if challenge_score < RISK_LOW_THRESHOLD:
+                    risk = "Low Risk"
+                    color = "#28a745"  # Green
+                    message = "Great fit! This schedule aligns well with the student's preparation."
+                elif challenge_score < RISK_MODERATE_THRESHOLD:
+                    risk = "Moderate Risk"
+                    color = "#ffc107"  # Yellow
+                    message = f"Manageable with support. Consider reviewing courses{f' (e.g., {most_challenging})' if most_challenging else ''} or adding tutoring."
+                else:
+                    risk = "High Risk"
+                    color = "#a6192e"  # Red
+                    message = f"Ambitious schedule! Consider adding tutoring or adjusting courses{f' (e.g., {most_challenging})' if most_challenging else ''} to ensure success."
 
             # Display result
             st.markdown("<div class='section-divider'></div>", unsafe_allow_html=True)
