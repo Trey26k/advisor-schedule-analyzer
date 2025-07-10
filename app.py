@@ -174,7 +174,7 @@ if page == "Advisor Tool":
             st.markdown("<div class='card'><h3>Schedule with Tutoring Options</h3></div>", unsafe_allow_html=True)
             tutored_courses = []
             for course in schedule_df["course_name"]:
-                is_challenging = course == most_challenging
+                is_challenging = (course == most_challenging) and (course not in st.session_state.tutored_courses)
                 course_display = f"<span class='highlight-red'>{course}</span>" if is_challenging else course
                 col1, col2 = st.columns([3, 1])
                 with col1:
@@ -274,8 +274,13 @@ elif page == "Tutoring Allocation Dashboard":
         "Estimated Hours Needed": np.random.randint(50, 500, len(realistic_courses)),
     })
     
+    # Student level filter at top
+    all_classifications = sorted(set(fake_data["Classification"]))
+    class_filter = st.multiselect("Select Student Level", all_classifications, default=all_classifications)
+    
+    top_data = fake_data[fake_data["Classification"].isin(class_filter)].sort_values("Estimated Hours Needed", ascending=False)
+    
     # Top section: KPIs and chart of top courses
-    top_data = fake_data.sort_values("Estimated Hours Needed", ascending=False)
     col1, col2 = st.columns(2)
     with col1:
         st.metric("Total Students Needing Tutoring", top_data["Students Flagged"].sum())
@@ -298,12 +303,9 @@ elif page == "Tutoring Allocation Dashboard":
         filtered_data = filtered_data[filtered_data["General Education"]]
     filtered_data = filtered_data.sort_values("Estimated Hours Needed", ascending=False)
     
-    # Filtered view
+    # Filtered view (table only, no bottom bar)
     if not filtered_data.empty:
-        st.dataframe(filtered_data[["Course Name", "Subject", "Classification", "Estimated Hours Needed", "Students Flagged"]])
-        
-        st.markdown("<h3>Estimated Hours by Course (Filtered by Department)</h3>", unsafe_allow_html=True)
-        st.bar_chart(filtered_data.set_index("Course Name")["Estimated Hours Needed"])
+        st.dataframe(filtered_data[["Course Name", "Subject", "Estimated Hours Needed", "Students Flagged"]])
 
     st.write("This dashboard simulates aggregated data from advising sessions. In production, it would pull from CRM integrations for real-time planning.")
 
@@ -356,4 +358,4 @@ elif page == "DFW Spotlight":
     pivot_df = filtered_data.pivot(index="Course Name", columns="Semester", values="DFW Rate (%)")
     st.bar_chart(pivot_df)
 
-    st.write("This dashboard uses simulated data. In production, it would integrate with school systems for accurate tracking.")
+    st.write("This dashboard uses simulated data. In production, it would integrate with school systems for accurate tracking.")    
