@@ -150,18 +150,13 @@ if page == "Advisor Tool":
                 st.stop()
             
             # Per-course tutoring checkboxes
-            st.markdown("<div class='card'><h3>Selected Schedule with Tutoring Options</h3></div>", unsafe_allow_html=True)
+            st.markdown("<div class='card'><h3>Tutoring Options</h3></div>", unsafe_allow_html=True)
             tutored_courses = []
-            display_rows = []
-            for _, row in schedule_df.iterrows():
-                course = row["course_name"]
-                dfw = row["DFW Rate (%)"]
-                col1, col2, col3 = st.columns([3, 1, 1])
+            for course in schedule_df["course_name"]:
+                col1, col2 = st.columns([3, 1])
                 with col1:
                     st.write(course)
                 with col2:
-                    st.write(f"DFW: {dfw:.1f}%")
-                with col3:
                     tutor_check = st.checkbox("Tutor", key=f"tutor_{course}", help="Checking this box will enroll student in tutoring reminders for this course.")
                     if tutor_check:
                         tutored_courses.append(course)
@@ -181,7 +176,15 @@ if page == "Advisor Tool":
                 most_challenging_idx = adjusted_dfw.idxmax()
                 most_challenging = schedule_df.loc[most_challenging_idx, "course_name"]
             
-            # Highlight in display (but since we used columns, highlight in messages)
+            # Format schedule table with highlight
+            display_df = schedule_df[["course_name"]].rename(columns={"course_name": "Course Name"})
+            if most_challenging:
+                display_df["Course Name"] = display_df["Course Name"].apply(
+                    lambda x: f"<span class='highlight-red'>{x}</span>" if x == most_challenging else x
+                )
+            
+            st.markdown("<div class='card'><h3>Selected Schedule</h3></div>", unsafe_allow_html=True)
+            st.markdown(display_df.to_html(escape=False, index=False), unsafe_allow_html=True)
             
             # Determine risk rating
             if challenge_score < RISK_LOW_THRESHOLD:
@@ -285,20 +288,4 @@ elif page == "Retention Insights Dashboard":
     with col1:
         st.metric("Average Retention Rate", f"{filtered_data['Predicted Retention Rate'].mean():.1f}%")
     with col2:
-        st.metric("% High Risk Students", f"{(len(filtered_data[filtered_data['Risk Level'] == 'High']) / len(filtered_data) * 100 if len(filtered_data) > 0 else 0):.1f}%")
-    with col3:
-        st.metric("Improvement from Tool", f"{filtered_data[filtered_data['Adjusted with Tool']]['Predicted Retention Rate'].mean() - filtered_data[~filtered_data['Adjusted with Tool']]['Predicted Retention Rate'].mean():.1f}%")
-    
-    # Aggregated table
-    agg_data = filtered_data.groupby(["Cohort", "Risk Level"]).agg({
-        "Predicted Retention Rate": "mean",
-        "Adjusted with Tool": "count"
-    }).rename(columns={"Adjusted with Tool": "Student Count"}).reset_index()
-    st.markdown("<h3>Cohort Insights</h3>", unsafe_allow_html=True)
-    st.dataframe(agg_data)
-    
-    # Chart
-    st.markdown("<h3>Retention by Risk Level</h3>", unsafe_allow_html=True)
-    st.line_chart(agg_data.pivot(index="Cohort", columns="Risk Level", values="Predicted Retention Rate"))
-    
-    st.write("This dashboard uses simulated data to show potential insights. In reality, it would analyze historical advising outcomes for predictive analytics.")
+        st.metric("% High Risk Students", f"{(len(filtered_data[filtered
