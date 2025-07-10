@@ -149,10 +149,18 @@ if page == "Advisor Tool":
             
             tutored_courses = st.session_state.tutored_courses
             
-            # Calculate challenge score with tutoring
+            # Calculate initial challenge score without tutoring
+            initial_challenge_score = calculate_challenge_score(student_strength, schedule_df, [])
+            
+            # Identify initial most challenging course
+            initial_most_challenging = None
+            if initial_challenge_score >= RISK_LOW_THRESHOLD and not schedule_df.empty:
+                initial_most_challenging = schedule_df.loc[schedule_df["DFW Rate (%)"].idxmax()]["course_name"]
+            
+            # Calculate current challenge score with tutoring
             challenge_score = calculate_challenge_score(student_strength, schedule_df, tutored_courses)
             
-            # Identify most challenging course based on adjusted DFW (recompute after tutoring)
+            # Identify current most challenging course based on adjusted DFW
             most_challenging = None
             if challenge_score >= RISK_LOW_THRESHOLD and not schedule_df.empty:
                 adjusted_dfw = schedule_df["DFW Rate (%)"].copy()
@@ -177,25 +185,52 @@ if page == "Advisor Tool":
                         tutored_courses.append(course)
             st.session_state.tutored_courses = tutored_courses  # Update session state
             
-            # Determine risk rating based on current challenge score
-            if challenge_score < RISK_LOW_THRESHOLD:
-                risk = "Low Risk"
-                color = "#28a745"  # Green
-                message = "Great fit! This schedule aligns well with the student's preparation."
-                if tutored_courses:
-                    message = "Great fit! With selected tutoring, this schedule aligns well."
-            elif challenge_score < RISK_MODERATE_THRESHOLD:
-                risk = "Moderate Risk"
-                color = "#ffc107"  # Yellow
-                message = f"Manageable with support. Consider reviewing courses{f' (e.g., {most_challenging})' if most_challenging else ''} or adding more tutoring."
-                if tutored_courses:
-                    message = f"Manageable with selected tutoring. Consider reviewing courses{f' (e.g., {most_challenging})' if most_challenging else ''}."
+            # Risk downgrade logic: If the initial flagged course is tutored, force downgrade by one level
+            downgrade = initial_most_challenging in tutored_courses if initial_most_challenging else False
+            
+            # Determine initial risk level without tutoring
+            if initial_challenge_score < RISK_LOW_THRESHOLD:
+                initial_risk = "Low Risk"
+                initial_color = "#28a745"
+            elif initial_challenge_score < RISK_MODERATE_THRESHOLD:
+                initial_risk = "Moderate Risk"
+                initial_color = "#ffc107"
             else:
-                risk = "High Risk"
-                color = "#a6192e"  # Red
-                message = f"Ambitious schedule! Consider adding tutoring or adjusting courses{f' (e.g., {most_challenging})' if most_challenging else ''} to ensure success."
-                if tutored_courses:
-                    message = f"Still ambitious with selected tutoring. Consider adjusting courses{f' (e.g., {most_challenging})' if most_challenging else ''}."
+                initial_risk = "High Risk"
+                initial_color = "#a6192e"
+            
+            # Apply downgrade if applicable
+            if downgrade:
+                if initial_risk == "High Risk":
+                    risk = "Moderate Risk"
+                    color = "#ffc107"
+                elif initial_risk == "Moderate Risk":
+                    risk = "Low Risk"
+                    color = "#28a745"
+                else:
+                    risk = initial_risk
+                    color = initial_color
+                message = f"Manageable with tutoring on challenging course. Consider reviewing other courses if needed."
+            else:
+                # Use calculated based on current challenge_score
+                if challenge_score < RISK_LOW_THRESHOLD:
+                    risk = "Low Risk"
+                    color = "#28a745"
+                    message = "Great fit! This schedule aligns well with the student's preparation."
+                    if tutored_courses:
+                        message = "Great fit! With selected tutoring, this schedule aligns well."
+                elif challenge_score < RISK_MODERATE_THRESHOLD:
+                    risk = "Moderate Risk"
+                    color = "#ffc107"
+                    message = f"Manageable with support. Consider reviewing courses{f' (e.g., {most_challenging})' if most_challenging else ''} or adding more tutoring."
+                    if tutored_courses:
+                        message = f"Manageable with selected tutoring. Consider reviewing courses{f' (e.g., {most_challenging})' if most_challenging else ''}."
+                else:
+                    risk = "High Risk"
+                    color = "#a6192e"
+                    message = f"Ambitious schedule! Consider adding tutoring or adjusting courses{f' (e.g., {most_challenging})' if most_challenging else ''} to ensure success."
+                    if tutored_courses:
+                        message = f"Still ambitious with selected tutoring. Consider adjusting courses{f' (e.g., {most_challenging})' if most_challenging else ''}."
 
             # Display result (consolidated below the schedule)
             st.markdown(f"**Challenge Level**: <span style='color:{color}; font-weight:bold;'>{risk}</span>", unsafe_allow_html=True)
@@ -239,42 +274,36 @@ elif page == "Tutoring Allocation Dashboard":
         "Estimated Hours Needed": np.random.randint(50, 500, len(realistic_courses)),
     })
     
-    # Initial view: Top 8 courses by estimated hours
-    top_8 = fake_data.sort_values("Estimated Hours Needed", ascending=False).head(8)
-    st.markdown("<h3>Top 8 Courses Needing Tutoring (by Estimated Hours)</h3>", unsafe_allow_html=True)
-    st.dataframe(top_8[["Course Name", "Subject", "Classification", "Estimated Hours Needed", "Students Flagged"]])
+    # Top section: KPIs and chart of top courses
+    top_data = fake_data.sort_values("Estimated Hours Needed", ascending=False)
+    col1, col2 = st.columns(2)
+    with col1:
+        st.metric("Total Students Needing Tutoring", top_data["Students Flagged"].sum())
+    with col2:
+        st.metric("Total Estimated Hours", top_data["Estimated Hours Needed"].sum())
     
-    # Filters for slicing
-    st.markdown("<h3>Filter Views</h3>", unsafe_allow_html=True)
+    st.markdown("<h3>Top Courses Needing Tutoring (by Estimated Hours)</h3>", unsafe_allow_html=True)
+    st.bar_chart(top_data.set_index("Course Name")["Estimated Hours Needed"])
+    
+    # Below: Actionable options to review by department (subject)
+    st.markdown("<h3>Review Top Tutoring Needs by Department</h3>", unsafe_allow_html=True)
     all_subjects = sorted(set(fake_data["Subject"]))
-    subject_filter = st.multiselect("View by Subject", all_subjects)
-    gen_ed_only = st.checkbox("View General Education Courses Only", value=False)
-    all_classifications = sorted(set(fake_data["Classification"]))
-    class_filter = st.multiselect("Slice by Classification", all_classifications)
+    subject_filter = st.multiselect("Select Department(s)", all_subjects)
+    gen_ed_only = st.checkbox("Limit to General Education Courses Only", value=False)
     
     filtered_data = fake_data.copy()
     if subject_filter:
         filtered_data = filtered_data[filtered_data["Subject"].isin(subject_filter)]
     if gen_ed_only:
         filtered_data = filtered_data[filtered_data["General Education"]]
-    if class_filter:
-        filtered_data = filtered_data[filtered_data["Classification"].isin(class_filter)]
     filtered_data = filtered_data.sort_values("Estimated Hours Needed", ascending=False)
     
     # Filtered view
     if not filtered_data.empty:
-        st.markdown("<h3>Filtered Tutoring Needs</h3>", unsafe_allow_html=True)
         st.dataframe(filtered_data[["Course Name", "Subject", "Classification", "Estimated Hours Needed", "Students Flagged"]])
         
-        st.markdown("<h3>Estimated Hours by Course (Filtered)</h3>", unsafe_allow_html=True)
+        st.markdown("<h3>Estimated Hours by Course (Filtered by Department)</h3>", unsafe_allow_html=True)
         st.bar_chart(filtered_data.set_index("Course Name")["Estimated Hours Needed"])
-    
-    # KPI metrics for filtered data
-    col1, col2 = st.columns(2)
-    with col1:
-        st.metric("Total Students Needing Tutoring", filtered_data["Students Flagged"].sum())
-    with col2:
-        st.metric("Total Estimated Hours", filtered_data["Estimated Hours Needed"].sum())
 
     st.write("This dashboard simulates aggregated data from advising sessions. In production, it would pull from CRM integrations for real-time planning.")
 
