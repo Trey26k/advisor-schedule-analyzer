@@ -150,12 +150,19 @@ if page == "Advisor Tool":
             # Remember old tutored for change detection
             old_tutored = st.session_state.tutored_courses.copy()
             
-            # Combined Selected Schedule and Tutoring Options (consolidated in one loop with columns)
+            # Table header
             st.markdown("<div class='card'><h3>Schedule with Tutoring Options</h3></div>", unsafe_allow_html=True)
+            col1, col2 = st.columns([4, 1])
+            with col1:
+                st.markdown("<b>Course Name</b>", unsafe_allow_html=True)
+            with col2:
+                st.markdown("<b>Tutoring</b>", unsafe_allow_html=True)
+            
+            # Table rows with course and checkbox
             tutored_courses = []
             for course in schedule_df["course_name"]:
-                col1, col2 = st.columns([3, 1])
-                tutor_check = st.checkbox("", key=f"tutor_{course}", help="Checking this box will enroll student in tutoring reminders for this course.")
+                col1, col2 = st.columns([4, 1])
+                tutor_check = st.checkbox("", key=f"tutor_{course}", help="Checking this box will enroll student in tutoring reminders for this course.", label_visibility="collapsed")
                 if tutor_check:
                     tutored_courses.append(course)
                 with col1:
