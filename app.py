@@ -29,6 +29,7 @@ st.markdown("""
     h1, h2, h3 { font-family: 'Arial', sans-serif; color: #003366; }
     p, div { font-family: 'Arial', sans-serif; color: #333333; }
     .highlight-red { color: #a6192e; font-weight: bold; }
+    .stCheckbox { margin-top: 0px; }  /* Tighten checkbox spacing */
     </style>
 """, unsafe_allow_html=True)
 
@@ -152,20 +153,20 @@ if page == "Advisor Tool":
             
             # Table header
             st.markdown("<div class='card'><h3>Schedule with Tutoring Options</h3></div>", unsafe_allow_html=True)
-            col1, col2 = st.columns([4, 1])
-            with col1:
+            header_col1, header_col2 = st.columns([8, 1])
+            with header_col1:
                 st.markdown("<b>Course Name</b>", unsafe_allow_html=True)
-            with col2:
+            with header_col2:
                 st.markdown("<b>Tutoring</b>", unsafe_allow_html=True)
             
             # Table rows with course and checkbox
             tutored_courses = []
             for course in schedule_df["course_name"]:
-                col1, col2 = st.columns([4, 1])
-                tutor_check = st.checkbox("", key=f"tutor_{course}", help="Checking this box will enroll student in tutoring reminders for this course.", label_visibility="collapsed")
+                row_col1, row_col2 = st.columns([8, 1])
+                tutor_check = row_col2.checkbox("", key=f"tutor_{course}", help="Checking this box will enroll student in tutoring reminders for this course.", label_visibility="collapsed")
                 if tutor_check:
                     tutored_courses.append(course)
-                with col1:
+                with row_col1:
                     # Highlight logic: red if most challenging and not tutored
                     initial_most_challenging = schedule_df.loc[schedule_df["DFW Rate (%)"].idxmax()]["course_name"] if not schedule_df.empty else None
                     is_challenging = (course == initial_most_challenging) and (not tutor_check)
