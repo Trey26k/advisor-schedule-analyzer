@@ -150,13 +150,20 @@ if page == "Advisor Tool":
             # Remember old tutored for change detection
             old_tutored = st.session_state.tutored_courses.copy()
             
-            # Combined Selected Schedule and Tutoring Options (consolidated)
+            # Combined Selected Schedule and Tutoring Options (consolidated in one loop with columns)
             st.markdown("<div class='card'><h3>Schedule with Tutoring Options</h3></div>", unsafe_allow_html=True)
             tutored_courses = []
             for course in schedule_df["course_name"]:
-                tutor_check = st.checkbox(f"Tutor for {course}", key=f"tutor_{course}", help="Checking this box will enroll student in tutoring reminders for this course.")
+                col1, col2 = st.columns([3, 1])
+                tutor_check = st.checkbox("", key=f"tutor_{course}", help="Checking this box will enroll student in tutoring reminders for this course.")
                 if tutor_check:
                     tutored_courses.append(course)
+                with col1:
+                    # Highlight logic: red if most challenging and not tutored
+                    initial_most_challenging = schedule_df.loc[schedule_df["DFW Rate (%)"].idxmax()]["course_name"] if not schedule_df.empty else None
+                    is_challenging = (course == initial_most_challenging) and (not tutor_check)
+                    course_display = f"<span class='highlight-red'>{course}</span>" if is_challenging else course
+                    st.markdown(course_display, unsafe_allow_html=True)
             
             # Update session and rerun if changed for immediate update
             if sorted(old_tutored) != sorted(tutored_courses):
@@ -175,12 +182,6 @@ if page == "Advisor Tool":
                     if not idx.empty:
                         adjusted_dfw.loc[idx] *= TUTORING_REDUCTION_FACTOR
                 most_challenging = schedule_df.loc[adjusted_dfw.idxmax(), "course_name"]
-            
-            # Display courses with dynamic highlight (separate loop for display)
-            for course in schedule_df["course_name"]:
-                is_challenging = (course == most_challenging) and (course not in tutored_courses)
-                course_display = f"<span class='highlight-red'>{course}</span>" if is_challenging else course
-                st.markdown(course_display, unsafe_allow_html=True)
             
             # Risk downgrade logic: If the initial flagged course is tutored, force downgrade by one level
             initial_challenge_score = calculate_challenge_score(student_strength, schedule_df, [])
