@@ -1,6 +1,8 @@
 import streamlit as st
 import pandas as pd
 import numpy as np  # For generating fake data
+import plotly.express as px
+import plotly.graph_objects as go
 
 # Constants for scoring weights and thresholds
 GPA_WEIGHT = 40
@@ -321,52 +323,116 @@ elif page == "Tutoring Allocation Dashboard":
     st.write("This dashboard simulates aggregated data from advising sessions. In production, it would pull from CRM integrations for real-time planning.")
 
 elif page == "DFW Spotlight":
-    st.markdown("<div class='card'><h1>DFW Spotlight 📊</h1></div>", unsafe_allow_html=True)
-    st.markdown("<p style='font-size: 16px;'>Track and compare DFW rates across semesters and subjects. Auto-flags outliers above 40%.</p>", unsafe_allow_html=True)
-    
-    # Fake data for DFW rates
-    np.random.seed(42)
-    realistic_courses = [
-        "General Chemistry", "Introductory Biology", "College Algebra", "Calculus I", "Trigonometry",
-        "Organic Chemistry", "Physics I", "Microeconomics", "Accounting I", "English Composition"
-    ]
-    subjects = ["CHEM", "BIO", "MATH", "MATH", "MATH", "CHEM", "PHYS", "ECON", "ACCT", "ENGL"]
-    semesters = ["Fall 2024", "Spring 2025", "Fall 2025"]
-    # Create multi-semester data
-    fake_data = pd.DataFrame({
-        "Course Name": np.repeat(realistic_courses, len(semesters)),
-        "Subject": np.repeat(subjects, len(semesters)),
-        "Semester": np.tile(semesters, len(realistic_courses)),
-        "DFW Rate (%)": np.random.uniform(20, 60, len(realistic_courses) * len(semesters)),
-    })
-    fake_data["Outlier"] = fake_data["DFW Rate (%)"] > 40  # Auto-flag
-    
-    # Filters
-    all_semesters = sorted(set(fake_data["Semester"]))
-    semester_filter = st.multiselect("Compare Semesters", all_semesters, default=all_semesters)
-    all_subjects = sorted(set(fake_data["Subject"]))
-    subject_filter = st.multiselect("Filter by Subject", all_subjects, default=all_subjects)
-    
-    filtered_data = fake_data[fake_data["Semester"].isin(semester_filter) & fake_data["Subject"].isin(subject_filter)]
-    
-    # Highlight outliers in table
-    def highlight_outliers(row):
-        return ['background-color: #ffc107' if row["Outlier"] else '' for _ in row]
-    
-    # KPI metrics
-    col1, col2 = st.columns(2)
-    with col1:
-        st.metric("Average DFW Rate", f"{filtered_data['DFW Rate (%)'].mean():.1f}%")
-    with col2:
-        st.metric("Outlier Courses", len(filtered_data[filtered_data["Outlier"]]))
-    
-    # Table
-    st.markdown("<h3>DFW Rates by Course and Semester</h3>", unsafe_allow_html=True)
-    st.dataframe(filtered_data.style.apply(highlight_outliers, axis=1))
-    
-    # Comparison chart
-    st.markdown("<h3>DFW Rate Comparison</h3>", unsafe_allow_html=True)
-    pivot_df = filtered_data.pivot(index="Course Name", columns="Semester", values="DFW Rate (%)")
-    st.bar_chart(pivot_df)
+    # Generate realistic fake data based on typical college DFW rates
+    # Courses: High DFW in STEM (e.g., Calculus 30-40%, Org Chem 40-50%, Physics 20-40%)
+    # Lower in others (e.g., English 10-20%). Includes fluctuations: e.g., Algebra jumps 25%->35%
+    data = {
+        'Subject': ['Math', 'Math', 'Math', 'Math', 'Math', 'Math', 'Math', 'Math', 'Math', 'Math',
+                    'Chemistry', 'Chemistry', 'Chemistry', 'Chemistry', 'Chemistry', 'Chemistry', 'Chemistry', 'Chemistry', 'Chemistry', 'Chemistry',
+                    'Physics', 'Physics', 'Physics', 'Physics', 'Physics', 'Physics', 'Physics', 'Physics', 'Physics', 'Physics',
+                    'Biology', 'Biology', 'Biology', 'Biology', 'Biology', 'Biology', 'Biology', 'Biology', 'Biology', 'Biology',
+                    'English', 'English', 'English', 'English', 'English', 'English', 'English', 'English', 'English', 'English',
+                    'History', 'History', 'History', 'History', 'History', 'History', 'History', 'History', 'History', 'History'],
+        'Course': ['College Algebra', 'College Algebra', 'College Algebra', 'College Algebra', 'College Algebra', 'Calculus I', 'Calculus I', 'Calculus I', 'Calculus I', 'Calculus I',
+                   'General Chemistry', 'General Chemistry', 'General Chemistry', 'General Chemistry', 'General Chemistry', 'Organic Chemistry', 'Organic Chemistry', 'Organic Chemistry', 'Organic Chemistry', 'Organic Chemistry',
+                   'Physics I', 'Physics I', 'Physics I', 'Physics I', 'Physics I', 'Physics II', 'Physics II', 'Physics II', 'Physics II', 'Physics II',
+                   'Intro Biology', 'Intro Biology', 'Intro Biology', 'Intro Biology', 'Intro Biology', 'Cell Biology', 'Cell Biology', 'Cell Biology', 'Cell Biology', 'Cell Biology',
+                   'English Comp I', 'English Comp I', 'English Comp I', 'English Comp I', 'English Comp I', 'English Comp II', 'English Comp II', 'English Comp II', 'English Comp II', 'English Comp II',
+                   'US History I', 'US History I', 'US History I', 'US History I', 'US History I', 'World History', 'World History', 'World History', 'World History', 'World History'],
+        'Year': [2020, 2021, 2022, 2023, 2024, 2020, 2021, 2022, 2023, 2024,
+                 2020, 2021, 2022, 2023, 2024, 2020, 2021, 2022, 2023, 2024,
+                 2020, 2021, 2022, 2023, 2024, 2020, 2021, 2022, 2023, 2024,
+                 2020, 2021, 2022, 2023, 2024, 2020, 2021, 2022, 2023, 2024,
+                 2020, 2021, 2022, 2023, 2024, 2020, 2021, 2022, 2023, 2024,
+                 2020, 2021, 2022, 2023, 2024, 2020, 2021, 2022, 2023, 2024],
+        'Semester': ['Fall', 'Spring', 'Fall', 'Spring', 'Fall', 'Fall', 'Spring', 'Fall', 'Spring', 'Fall',
+                     'Fall', 'Spring', 'Fall', 'Spring', 'Fall', 'Fall', 'Spring', 'Fall', 'Spring', 'Fall',
+                     'Fall', 'Spring', 'Fall', 'Spring', 'Fall', 'Fall', 'Spring', 'Fall', 'Spring', 'Fall',
+                     'Fall', 'Spring', 'Fall', 'Spring', 'Fall', 'Fall', 'Spring', 'Fall', 'Spring', 'Fall',
+                     'Fall', 'Spring', 'Fall', 'Spring', 'Fall', 'Fall', 'Spring', 'Fall', 'Spring', 'Fall',
+                     'Fall', 'Spring', 'Fall', 'Spring', 'Fall', 'Fall', 'Spring', 'Fall', 'Spring', 'Fall'],
+        'DFW_Rate': [0.25, 0.28, 0.35, 0.32, 0.30, 0.32, 0.35, 0.38, 0.34, 0.36,
+                     0.28, 0.30, 0.32, 0.29, 0.31, 0.42, 0.45, 0.48, 0.44, 0.46,
+                     0.22, 0.25, 0.28, 0.24, 0.26, 0.30, 0.32, 0.35, 0.31, 0.33,
+                     0.20, 0.22, 0.25, 0.21, 0.23, 0.28, 0.30, 0.32, 0.29, 0.31,
+                     0.12, 0.15, 0.18, 0.14, 0.16, 0.10, 0.13, 0.16, 0.12, 0.14,
+                     0.15, 0.18, 0.20, 0.17, 0.19, 0.14, 0.16, 0.19, 0.15, 0.17],
+        'Enrollment': [500, 480, 520, 510, 490, 400, 390, 410, 395, 405,
+                       450, 440, 460, 445, 455, 300, 290, 310, 295, 305,
+                       350, 340, 360, 345, 355, 280, 270, 290, 275, 285,
+                       600, 580, 620, 590, 610, 550, 530, 570, 540, 560,
+                       700, 680, 720, 690, 710, 650, 630, 670, 640, 660,
+                       400, 390, 410, 395, 405, 380, 370, 390, 375, 385]
+    }
+    df = pd.DataFrame(data)
+    df['DFW_Rate_%'] = df['DFW_Rate'] * 100  # For display
+    df['Period'] = df['Year'].astype(str) + ' ' + df['Semester']
 
-    st.write("This dashboard uses simulated data. In production, it would integrate with school systems for accurate tracking.")
+    # Sort periods chronologically for comparisons
+    df = df.sort_values(['Year', 'Semester'])
+
+    # Calculate changes for notifications
+    df['Prev_DFW_Rate'] = df.groupby('Course')['DFW_Rate'].shift(1)
+    df['Change'] = df['DFW_Rate'] - df['Prev_DFW_Rate']
+    df['Change_Percent'] = (df['Change'] / df['Prev_DFW_Rate'] * 100).where(df['Prev_DFW_Rate'] != 0)
+
+    # Streamlit Dashboard
+    st.title('DFW Rates Dashboard for Administrators')
+    st.markdown('''Insights into course difficulties: Compare trends, spot changes, and drill down by subject.  
+                Ties into schedule rigor—high DFW courses may need tutoring interventions.''')
+
+    # Sidebar for global filters
+    st.sidebar.header('Filters')
+    selected_subject = st.sidebar.selectbox('Drill Into Subject', ['All'] + sorted(df['Subject'].unique()))
+    selected_course = st.sidebar.selectbox('Select Course for Trend', ['All'] + sorted(df['Course'].unique()))
+    change_threshold = st.sidebar.slider('Notification Threshold (% Change)', 5, 20, 10)
+
+    # Section 1: Highest DFW Rates Across Campus
+    st.header('Highest DFW Rates Across Campus')
+    latest_year = df['Year'].max()
+    latest_df = df[df['Year'] == latest_year].groupby('Course').agg({'DFW_Rate_%': 'mean', 'Enrollment': 'sum'}).reset_index()
+    latest_df = latest_df.sort_values('DFW_Rate_%', ascending=False).head(10)
+    st.table(latest_df.style.format({'DFW_Rate_%': '{:.1f}%'}))
+
+    # Bar Chart
+    fig_bar = px.bar(latest_df, x='Course', y='DFW_Rate_%', text='DFW_Rate_%',
+                     labels={'DFW_Rate_%': 'DFW Rate (%)'}, title=f'Top 10 Highest DFW Courses ({latest_year})')
+    fig_bar.update_traces(texttemplate='%{text:.1f}%', textposition='outside')
+    st.plotly_chart(fig_bar)
+
+    # Section 2: Year-Over-Year / Semester Comparisons
+    st.header('Trend Comparisons')
+    if selected_course != 'All':
+        course_data = df[df['Course'] == selected_course]
+        fig_line = px.line(course_data, x='Period', y='DFW_Rate_%', markers=True,
+                           title=f'DFW Rate Trend for {selected_course}')
+        fig_line.update_yaxes(title='DFW Rate (%)')
+        st.plotly_chart(fig_line)
+    else:
+        st.info('Select a course in the sidebar to view trends.')
+
+    # Section 3: Notifications for Changes
+    st.header('Notifications: Significant Changes')
+    changes_df = df[(abs(df['Change_Percent']) >= change_threshold) & df['Change'].notna()]
+    if not changes_df.empty:
+        for _, row in changes_df.iterrows():
+            direction = 'jump' if row['Change'] > 0 else 'drop'
+            st.warning(f"Alert: {row['Course']} DFW rate {direction}ed by {row['Change_Percent']:.1f}% to {row['DFW_Rate_%']:.1f}% in {row['Period']} (from prior period).")
+    else:
+        st.success('No significant changes detected based on threshold.')
+
+    # Section 4: Drill Into Subject
+    if selected_subject != 'All':
+        st.header(f'Detailed View for {selected_subject}')
+        subject_df = df[df['Subject'] == selected_subject]
+        # Table
+        st.subheader('Course Data Table')
+        st.dataframe(subject_df[['Course', 'Period', 'DFW_Rate_%', 'Enrollment', 'Change_Percent']].style.format({'DFW_Rate_%': '{:.1f}%', 'Change_Percent': '{:.1f}%'}))
+        
+        # Chart
+        fig_subject = px.line(subject_df, x='Period', y='DFW_Rate_%', color='Course', markers=True,
+                              title=f'DFW Trends in {selected_subject}')
+        fig_subject.update_yaxes(title='DFW Rate (%)')
+        st.plotly_chart(fig_subject)
+    else:
+        st.info('Select a subject in the sidebar to drill down.')
